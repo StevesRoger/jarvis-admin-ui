@@ -9013,7 +9013,8 @@ export const CustomerService = {
     },
 
     getCustomersLarge() {
-        return Promise.resolve(this.getData().slice(0, 200));
+        // return Promise.resolve(this.getData().slice(0, 200));
+        return Promise.resolve(this.getData());
     },
 
     getCustomersXLarge() {

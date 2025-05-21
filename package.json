@@ -1,5 +1,5 @@
 {
-    "name": "sakai-vue",
+    "name": "jarvis-admin-ui",
     "version": "4.3.0",
     "scripts": {
         "dev": "vite",
@@ -9,13 +9,18 @@
     },
     "dependencies": {
         "@primeuix/themes": "^1.0.0",
+        "axios": "^1.9.0",
+        "axios-case-converter": "^1.1.1",
         "chart.js": "3.3.2",
+        "jarvis-admin-ui": "file:",
         "primeicons": "^7.0.0",
         "primevue": "^4.3.1",
         "sakai-vue": "file:",
         "tailwindcss-primeui": "^0.5.0",
+        "uuid": "^11.1.0",
         "vue": "^3.4.34",
-        "vue-router": "^4.4.0"
+        "vue-router": "^4.4.0",
+        "vuex": "^4.1.0"
     },
     "devDependencies": {
         "@primevue/auto-import-resolver": "^4.3.1",

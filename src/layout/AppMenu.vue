@@ -9,6 +9,15 @@ const model = ref([
         items: [{ label: 'Dashboard', icon: 'pi pi-fw pi-home', to: '/' }]
     },
     {
+        label: 'Gateway',
+        items: [
+            { label: 'Route', icon: 'pi pi-fw pi-sort-alt', to: '/route' },
+            { label: 'Route Security', icon: 'pi pi-fw pi-lock', to: '/#' },
+            { label: 'Request Filter', icon: 'pi pi-fw pi-filter', to: '/#' },
+            { label: 'CORS', icon: 'pi pi-fw pi-sliders-h', to: '/#' }
+        ]
+    },
+    {
         label: 'UI Components',
         items: [
             { label: 'Form Layout', icon: 'pi pi-fw pi-id-card', to: '/uikit/formlayout' },
