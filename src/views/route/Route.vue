@@ -1,16 +1,11 @@
 <script setup>
-import { CustomerService } from '@/service/CustomerService';
-import { ProductService } from '@/service/ProductService';
 import { listRoute } from '@/service/RouteService';
 import { FilterMatchMode, FilterOperator } from '@primevue/core/api';
 import { onBeforeMount, reactive, ref } from 'vue';
 
-const routes = ref(null);
 const customers1 = ref(null);
 const customers2 = ref(null);
 const customers3 = ref(null);
-const routeFilter = ref(null);
-const loading1 = ref(true);
 const balanceFrozen = ref(false);
 const products = ref(null);
 const expandedRows = ref([]);
@@ -27,6 +22,38 @@ const representatives = reactive([
     { name: 'Stephen Shaw', image: 'stephenshaw.png' },
     { name: 'XuXue Feng', image: 'xuxuefeng.png' }
 ]);
+
+const dt = ref(null);
+const routes = ref(null);
+const loading = ref(false);
+const page = ref(1);
+const limit = ref(10);
+const totalRecords = ref(0);
+const tableParams = ref({});
+const globalFilterFields = ref(['id', 'path', 'url', 'readTimeout', 'createdBy', 'excludeHeader', 'requiredHeader', 'whitelistIp', 'status']);
+const filters = ref({
+    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    id: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.STARTS_WITH }] },
+    path: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.STARTS_WITH }] },
+    url: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.STARTS_WITH }] },
+    readTimeout: { value: null, matchMode: FilterMatchMode.EQUALS },
+    excludeHeader: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.STARTS_WITH }] },
+    requiredHeader: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.STARTS_WITH }] },
+    whitelistIp: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.STARTS_WITH }] },
+    stripPrefix: { value: null, matchMode: FilterMatchMode.EQUALS },
+    enableRedirect: { value: null, matchMode: FilterMatchMode.EQUALS },
+    status: { operator: FilterOperator.OR, constraints: [{ value: null, matchMode: FilterMatchMode.EQUALS }] },
+    createdBy: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.STARTS_WITH }] },
+    createdDate: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.DATE_IS }] }
+    /*name: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.STARTS_WITH }] },
+        'country.name': { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.STARTS_WITH }] },
+        representative: { value: null, matchMode: FilterMatchMode.IN },
+        date: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.DATE_IS }] },
+        balance: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.EQUALS }] },
+        status: { operator: FilterOperator.OR, constraints: [{ value: null, matchMode: FilterMatchMode.EQUALS }] },
+        activity: { value: [0, 100], matchMode: FilterMatchMode.BETWEEN },
+        verified: { value: null, matchMode: FilterMatchMode.EQUALS }*/
+});
 
 function getOrderSeverity(order) {
     switch (order.status) {
@@ -75,56 +102,93 @@ function getStockSeverity(product) {
 }
 
 onBeforeMount(() => {
-    listRoute({}).then((res) => {
-        routes.value = res.item;
-        loading1.value = false;
-    });
-    ProductService.getProductsWithOrdersSmall().then((data) => (products.value = data));
+    console.log(dt);
+    tableParams.value = {
+        page: dt.value?.first || page.value,
+        limit: dt.value?.rows || limit.value,
+        sortField: null,
+        sortOrder: null,
+        filters: dt.value?.filters.value || filters.value
+    };
+    loadRoute();
+    /*ProductService.getProductsWithOrdersSmall().then((data) => (products.value = data));
     CustomerService.getCustomersLarge().then((data) => {
         customers1.value = data;
-        loading1.value = false;
+        loadingRoute.value = false;
         customers1.value.forEach((customer) => (customer.date = new Date(customer.date)));
     });
     CustomerService.getCustomersLarge().then((data) => (customers2.value = data));
-    CustomerService.getCustomersMedium().then((data) => (customers3.value = data));
-
-    initRouteFilter();
+    CustomerService.getCustomersMedium().then((data) => (customers3.value = data));*/
 });
 
-function initRouteFilter() {
-    routeFilter.value = {
-        global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-        id: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.STARTS_WITH }] },
-        path: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.STARTS_WITH }] },
-        url: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.STARTS_WITH }] },
-        connectionReadTimeout: { value: null, matchMode: FilterMatchMode.EQUALS },
-        excludeHeader: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.STARTS_WITH }] },
-        requiredHeader: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.STARTS_WITH }] },
-        whitelistIp: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.STARTS_WITH }] },
-        stripPrefix: { value: null, matchMode: FilterMatchMode.EQUALS },
-        enableRedirect: { value: null, matchMode: FilterMatchMode.EQUALS },
-        status: { operator: FilterOperator.OR, constraints: [{ value: null, matchMode: FilterMatchMode.EQUALS }] }
-        /*name: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.STARTS_WITH }] },
-        'country.name': { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.STARTS_WITH }] },
-        representative: { value: null, matchMode: FilterMatchMode.IN },
-        date: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.DATE_IS }] },
-        balance: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.EQUALS }] },
-        status: { operator: FilterOperator.OR, constraints: [{ value: null, matchMode: FilterMatchMode.EQUALS }] },
-        activity: { value: [0, 100], matchMode: FilterMatchMode.BETWEEN },
-        verified: { value: null, matchMode: FilterMatchMode.EQUALS }*/
-    };
-}
+const onPage = (event) => {
+    tableParams.value = event;
+    loadRoute(event);
+};
 
-function clearFilter() {
-    Object.keys(routeFilter.value).forEach((key) => {
-        const filter = routeFilter.value[key];
+const onSort = (event) => {
+    tableParams.value = event;
+    loadRoute(event);
+};
+
+const onFilter = (event) => {
+    tableParams.value.filters = filters.value;
+    loadRoute(event);
+    // dt.value.resetPage();
+    // event.filters.global = globalFilter.value;
+    //apiFetch(event, true);
+};
+
+const clearFilter = () => {
+    Object.keys(filters.value).forEach((key) => {
+        const filter = filters.value[key];
         if (filter.constraints) {
             filter.constraints.forEach((v) => (v.value = null));
         } else {
             filter.value = null;
         }
     });
-}
+};
+
+const loadRoute = (event) => {
+    console.log('event', event);
+    loading.value = true;
+    tableParams.value = { ...tableParams.value, page: event?.first || page.value, limit: event?.rows || limit.value };
+    console.log('table param', tableParams);
+    try {
+        listRoute({ page: tableParams.page, limit: tableParams.limit })
+            .then((res) => {
+                routes.value = res.item;
+                totalRecords.value = res.totalRecord;
+                routes.value.forEach((v) => (v.createdDate = new Date(v.createdDate)));
+            })
+            .finally(() => {
+                loading.value = false;
+            });
+        /* setTimeout(async () => {
+            const response = await fetch(
+                route('admin.brands.show-brands', {
+                    page: JSON.stringify(event?.page + 1),
+                    sortField: event?.sortField,
+                    sortOrder: event?.sortOrder,
+                    filter: { brand_name: event?.filters?.brand_name.value },
+                    include: [],
+                    lazyEvent: JSON.stringify(tableParams.value)
+                })
+            ).then(async (res) => {
+                const brands = await res.json();
+
+                brandData.value = brands?.data.data;
+                totalRecords.value = brands?.data.total;
+                loading.value = false;
+            });
+        }, 100);*/
+    } catch (e) {
+        console.log(e);
+        routes.value = [];
+        totalRecords.value = 0;
+    }
+};
 
 function expandAll() {
     expandedRows.value = products.value.reduce((acc, p) => (acc[p.id] = true) && acc, {});
@@ -138,13 +202,11 @@ function formatCurrency(value) {
     return value.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 }
 
-function formatDate(value) {
-    return value.toLocaleDateString('en-US', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-    });
-}
+const formatDate = (value) => {
+    const date = new Date(value);
+    let options = { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
+    return new Intl.DateTimeFormat('km-KH', options).format(date);
+};
 
 function calculateCustomerTotal(name) {
     let total = 0;
@@ -165,15 +227,24 @@ function calculateCustomerTotal(name) {
         <div class="font-semibold text-xl mb-4">Route</div>
         <DataTable
             :value="routes"
-            :paginator="true"
-            :rows="10"
-            dataKey="id"
-            :rowHover="true"
-            v-model:filters="routeFilter"
-            filterDisplay="menu"
-            :loading="loading1"
-            :globalFilterFields="['id', 'path', 'url', 'excludeHeader', 'requiredHeader', 'whitelistIp', 'status']"
+            :rowsPerPageOptions="[5, 10, 20, 50]"
+            :first="page"
+            :rows="limit"
+            :totalRecords="totalRecords"
+            :loading="loading"
+            @filter="onFilter($event)"
+            @page="onPage($event)"
+            @sort="onSort($event)"
+            paginator
+            lazy
+            rowHover
             showGridlines
+            stripedRows
+            dataKey="id"
+            v-model:filters="filters"
+            ref="dt"
+            filterDisplay="menu"
+            :globalFilterFields="globalFilterFields"
         >
             <template #header>
                 <div class="flex justify-between">
@@ -182,13 +253,13 @@ function calculateCustomerTotal(name) {
                         <InputIcon>
                             <i class="pi pi-search" />
                         </InputIcon>
-                        <InputText v-model="routeFilter['global'].value" placeholder="Keyword Search" />
+                        <InputText v-model="filters['global'].value" placeholder="Keyword Search" />
                     </IconField>
                 </div>
             </template>
-            <template #empty> No customers found. </template>
-            <template #loading> Loading customers data. Please wait. </template>
-            <Column field="id" header="ID" style="min-width: 12rem">
+            <template #empty>No route found</template>
+            <template #loading>Loading route data. Please wait.</template>
+            <Column field="id" filterField="id" header="ID" style="min-width: 12rem">
                 <template #body="{ data }">
                     {{ data.id }}
                 </template>
@@ -196,7 +267,7 @@ function calculateCustomerTotal(name) {
                     <InputText v-model="filterModel.value" type="text" placeholder="Search by id" />
                 </template>
             </Column>
-            <Column field="path" header="Path" style="min-width: 12rem">
+            <Column field="path" filterField="path" header="Path" style="min-width: 12rem">
                 <template #body="{ data }">
                     {{ data.path }}
                 </template>
@@ -204,7 +275,7 @@ function calculateCustomerTotal(name) {
                     <InputText v-model="filterModel.value" type="text" placeholder="Search by path" />
                 </template>
             </Column>
-            <Column field="url" header="URL" style="min-width: 12rem">
+            <Column field="url" filterField="url" header="URL" style="min-width: 12rem">
                 <template #body="{ data }">
                     {{ data.url }}
                 </template>
@@ -212,7 +283,7 @@ function calculateCustomerTotal(name) {
                     <InputText v-model="filterModel.value" type="text" placeholder="Search by url" />
                 </template>
             </Column>
-            <Column field="connectionReadTimeout" header="Read Timeout" style="min-width: 12rem">
+            <Column field="connectionReadTimeout" filterField="readTimeout" header="Read Timeout" style="min-width: 12rem">
                 <template #body="{ data }">
                     {{ data.connectionReadTimeout }}
                 </template>
@@ -220,7 +291,7 @@ function calculateCustomerTotal(name) {
                     <InputText v-model="filterModel.value" type="text" placeholder="Search by read timeout" />
                 </template>
             </Column>
-            <Column field="excludeHeader" header="Exclude Header" style="min-width: 12rem">
+            <Column field="excludeHeader" filterField="excludeHeader" header="Exclude Header" style="min-width: 12rem">
                 <template #body="{ data }">
                     {{ data.excludeHeader }}
                 </template>
@@ -228,7 +299,7 @@ function calculateCustomerTotal(name) {
                     <InputText v-model="filterModel.value" type="text" placeholder="Search by exclude header" />
                 </template>
             </Column>
-            <Column field="requiredHeader" header="Required Header" style="min-width: 15rem">
+            <Column field="requiredHeader" filterField="requiredHeader" header="Required Header" style="min-width: 15rem">
                 <template #body="{ data }">
                     {{ data.requiredHeader }}
                 </template>
@@ -236,7 +307,7 @@ function calculateCustomerTotal(name) {
                     <InputText v-model="filterModel.value" type="text" placeholder="Search by required header" />
                 </template>
             </Column>
-            <Column field="whitelistIp" header="WhitelistIp" style="min-width: 12rem">
+            <Column field="whitelistIp" filterField="whitelistIp" header="WhitelistIp" style="min-width: 12rem">
                 <template #body="{ data }">
                     {{ data.whitelistIp }}
                 </template>
@@ -244,45 +315,61 @@ function calculateCustomerTotal(name) {
                     <InputText v-model="filterModel.value" type="text" placeholder="Search by white list Ip" />
                 </template>
             </Column>
-            <Column field="stripPrefix" header="Strip Prefix" dataType="boolean" bodyClass="text-center" style="min-width: 8rem">
+            <Column field="createdBy" filterField="createdBy" header="Created By" style="min-width: 12rem">
                 <template #body="{ data }">
-                    <p v-if="data.stripPrefix" style="color: green">YES</p>
-                    <p v-if="!data.stripPrefix" style="color: red">NO</p>
+                    {{ data.createdBy }}
+                </template>
+                <template #filter="{ filterModel }">
+                    <InputText v-model="filterModel.value" type="text" placeholder="Search by created by" />
+                </template>
+            </Column>
+            <Column field="createdDate" filterField="createdDate" header="Created Date" dataType="date" style="min-width: 15rem">
+                <template #body="{ data }">
+                    {{ formatDate(data.createdDate) }}
+                </template>
+                <template #filter="{ filterModel }">
+                    <DatePicker v-model="filterModel.value" dateFormat="dd/mm/yy" placeholder="dd/mm/yyyy" />
+                </template>
+            </Column>
+            <Column field="stripPrefix" filterField="stripPrefix" header="Strip Prefix" dataType="boolean" bodyClass="text-center" style="min-width: 12rem">
+                <template #body="{ data }">
+                    <p v-if="data.stripPrefix" style="color: #15803d">YES</p>
+                    <p v-if="!data.stripPrefix" style="color: #b91c1c">NO</p>
                 </template>
                 <template #filter="{ filterModel }">
                     <label for="stripPrefix-filter" class="font-bold"> Strip Prefix </label>
                     <div class="flex flex-wrap gap-4">
                         <div class="flex items-center gap-2">
                             <RadioButton v-model="filterModel.value" inputId="yes" name="stripPrefix" :value="true" />
-                            <label for="yes" style="color: green">YES</label>
+                            <label for="yes" style="color: #15803d">YES</label>
                         </div>
                         <div class="flex items-center gap-2">
                             <RadioButton v-model="filterModel.value" inputId="no" name="stripPrefix" :value="false" />
-                            <label for="no" style="color: red">NO</label>
+                            <label for="no" style="color: #b91c1c">NO</label>
                         </div>
                     </div>
                 </template>
             </Column>
-            <Column field="enableRedirect" header="Enable Redirect" dataType="boolean" bodyClass="text-center" style="min-width: 8rem">
+            <Column field="enableRedirect" filterField="enableRedirect" header="Enable Redirect" dataType="boolean" bodyClass="text-center" style="min-width: 12rem">
                 <template #body="{ data }">
-                    <p v-if="data.enableRedirect" style="color: green">YES</p>
-                    <p v-if="!data.enableRedirect" style="color: red">NO</p>
+                    <p v-if="data.enableRedirect" style="color: #15803d">YES</p>
+                    <p v-if="!data.enableRedirect" style="color: #b91c1c">NO</p>
                 </template>
                 <template #filter="{ filterModel }">
                     <label for="enableRedirect-filter" class="font-bold"> Strip Prefix </label>
                     <div class="flex flex-wrap gap-4">
                         <div class="flex items-center gap-2">
                             <RadioButton v-model="filterModel.value" inputId="yes" name="enableRedirect" :value="true" />
-                            <label for="yes" style="color: green">YES</label>
+                            <label for="yes" style="color: #15803d">YES</label>
                         </div>
                         <div class="flex items-center gap-2">
                             <RadioButton v-model="filterModel.value" inputId="no" name="enableRedirect" :value="false" />
-                            <label for="no" style="color: red">NO</label>
+                            <label for="no" style="color: #b91c1c">NO</label>
                         </div>
                     </div>
                 </template>
             </Column>
-            <Column field="status" header="Status" :filterMenuStyle="{ width: '14rem' }" style="min-width: 12rem">
+            <Column field="status" filterField="status" header="Status" :filterMenuStyle="{ width: '14rem' }" style="min-width: 12rem">
                 <template #body="{ data }">
                     <Tag :value="data.status" :severity="getSeverity(data.status)" />
                 </template>
