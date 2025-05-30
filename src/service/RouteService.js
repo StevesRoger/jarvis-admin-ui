@@ -4,6 +4,7 @@ export async function listRoute(params) {
     return request({
         url: '/route',
         method: 'get',
-        params
+        params: params,
+        paramsSerializer: (params) => new URLSearchParams(params).toString()
     });
 }

@@ -1,7 +1,10 @@
 <script setup>
 import { listRoute } from '@/service/RouteService';
+import { formatDate } from '@/utils/DateUtil';
+import { converter } from '@/utils/ObjectUtil';
+import { camelToSnake } from '@/utils/StringUtil';
 import { FilterMatchMode, FilterOperator } from '@primevue/core/api';
-import { onBeforeMount, reactive, ref } from 'vue';
+import { onBeforeMount, reactive, ref, watch } from 'vue';
 
 const customers1 = ref(null);
 const customers2 = ref(null);
@@ -10,18 +13,6 @@ const balanceFrozen = ref(false);
 const products = ref(null);
 const expandedRows = ref([]);
 const statuses = reactive(['ACTIVE', 'INACTIVE']);
-const representatives = reactive([
-    { name: 'Amy Elsner', image: 'amyelsner.png' },
-    { name: 'Anna Fali', image: 'annafali.png' },
-    { name: 'Asiya Javayant', image: 'asiyajavayant.png' },
-    { name: 'Bernardo Dominic', image: 'bernardodominic.png' },
-    { name: 'Elwin Sharvill', image: 'elwinsharvill.png' },
-    { name: 'Ioni Bowcher', image: 'ionibowcher.png' },
-    { name: 'Ivan Magalhaes', image: 'ivanmagalhaes.png' },
-    { name: 'Onyama Limba', image: 'onyamalimba.png' },
-    { name: 'Stephen Shaw', image: 'stephenshaw.png' },
-    { name: 'XuXue Feng', image: 'xuxuefeng.png' }
-]);
 
 const dt = ref(null);
 const routes = ref(null);
@@ -29,88 +20,53 @@ const loading = ref(false);
 const page = ref(1);
 const limit = ref(10);
 const totalRecords = ref(0);
-const tableParams = ref({});
-const globalFilterFields = ref(['id', 'path', 'url', 'readTimeout', 'createdBy', 'excludeHeader', 'requiredHeader', 'whitelistIp', 'status']);
+const mapFilterType = ref(new Map());
+const refTableParams = ref({});
+const globalFilterFields = ref(['name', 'path', 'url', 'connectionReadTimeout', 'createdBy', 'excludeHeader', 'requiredHeader', 'whitelistIp', 'status']);
+const filterNameMatchMode = ref([
+    { label: 'Contains', value: FilterMatchMode.CONTAINS },
+    { label: 'Starts With', value: FilterMatchMode.STARTS_WITH }
+]);
 const filters = ref({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    id: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.STARTS_WITH }] },
-    path: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.STARTS_WITH }] },
-    url: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.STARTS_WITH }] },
-    readTimeout: { value: null, matchMode: FilterMatchMode.EQUALS },
-    excludeHeader: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.STARTS_WITH }] },
-    requiredHeader: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.STARTS_WITH }] },
-    whitelistIp: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.STARTS_WITH }] },
-    stripPrefix: { value: null, matchMode: FilterMatchMode.EQUALS },
-    enableRedirect: { value: null, matchMode: FilterMatchMode.EQUALS },
-    status: { operator: FilterOperator.OR, constraints: [{ value: null, matchMode: FilterMatchMode.EQUALS }] },
-    createdBy: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.STARTS_WITH }] },
-    createdDate: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.DATE_IS }] }
-    /*name: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.STARTS_WITH }] },
-        'country.name': { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.STARTS_WITH }] },
-        representative: { value: null, matchMode: FilterMatchMode.IN },
-        date: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.DATE_IS }] },
-        balance: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.EQUALS }] },
-        status: { operator: FilterOperator.OR, constraints: [{ value: null, matchMode: FilterMatchMode.EQUALS }] },
-        activity: { value: [0, 100], matchMode: FilterMatchMode.BETWEEN },
-        verified: { value: null, matchMode: FilterMatchMode.EQUALS }*/
+    name: {
+        operator: FilterOperator.AND,
+        constraints: [{ value: null, matchMode: FilterMatchMode.CONTAINS }]
+    },
+    path: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    url: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    connectionReadTimeout: { value: null, matchMode: FilterMatchMode.EQUALS, dataType: 'number' },
+    excludeHeader: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    requiredHeader: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    whitelistIp: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    stripPrefix: { value: null, matchMode: FilterMatchMode.EQUALS, dataType: 'boolean' },
+    enableRedirect: { value: null, matchMode: FilterMatchMode.EQUALS, dataType: 'boolean' },
+    status: { value: null, matchMode: FilterMatchMode.EQUALS },
+    createdBy: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    createdDate: { value: null, matchMode: FilterMatchMode.DATE_IS, dataType: 'date' }
 });
 
-function getOrderSeverity(order) {
-    switch (order.status) {
-        case 'DELIVERED':
-            return 'success';
+let globalSearchDelay;
 
-        case 'CANCELLED':
-            return 'danger';
-
-        case 'PENDING':
-            return 'warn';
-
-        case 'RETURNED':
-            return 'info';
-
-        default:
-            return null;
+watch(
+    () => filters.value.global.value,
+    (newValue) => {
+        clearTimeout(globalSearchDelay);
+        globalSearchDelay = setTimeout(() => {
+            console.log('watcher global search', newValue);
+            console.log('object table', dt.value);
+            //loadRoute();
+        }, 500);
     }
-}
-
-function getSeverity(status) {
-    switch (status) {
-        case 'INACTIVE':
-            return 'danger';
-        case 'ACTIVE':
-            return 'success';
-        default:
-            return 'info';
-    }
-}
-
-function getStockSeverity(product) {
-    switch (product.inventoryStatus) {
-        case 'INSTOCK':
-            return 'success';
-
-        case 'LOWSTOCK':
-            return 'warn';
-
-        case 'OUTOFSTOCK':
-            return 'danger';
-
-        default:
-            return null;
-    }
-}
+);
 
 onBeforeMount(() => {
-    console.log(dt);
-    tableParams.value = {
-        page: dt.value?.first || page.value,
-        limit: dt.value?.rows || limit.value,
-        sortField: null,
-        sortOrder: null,
-        filters: dt.value?.filters.value || filters.value
-    };
-    loadRoute();
+    manipulateTableParam();
+    Object.entries(filters.value).forEach(([key, obj]) => {
+        const dataType = obj.dataType || 'string';
+        mapFilterType.value.set(key, dataType);
+    });
+    fetchRoute();
     /*ProductService.getProductsWithOrdersSmall().then((data) => (products.value = data));
     CustomerService.getCustomersLarge().then((data) => {
         customers1.value = data;
@@ -122,104 +78,134 @@ onBeforeMount(() => {
 });
 
 const onPage = (event) => {
-    tableParams.value = event;
-    loadRoute(event);
+    manipulateTableParam(event);
+    console.log('onPage', refTableParams.value);
+    fetchRoute();
 };
 
 const onSort = (event) => {
-    tableParams.value = event;
-    loadRoute(event);
+    manipulateTableParam(event);
+    console.log('onSort', refTableParams.value);
+    fetchRoute();
 };
 
 const onFilter = (event) => {
-    tableParams.value.filters = filters.value;
-    loadRoute(event);
-    // dt.value.resetPage();
+    manipulateTableParam(event);
+    console.log('onFilter', refTableParams.value);
+    fetchRoute();
     // event.filters.global = globalFilter.value;
     //apiFetch(event, true);
 };
 
-const clearFilter = () => {
+const onClearFilter = () => {
+    let shouldRefresh = false;
     Object.keys(filters.value).forEach((key) => {
         const filter = filters.value[key];
         if (filter.constraints) {
-            filter.constraints.forEach((v) => (v.value = null));
+            filter.constraints.forEach((v) => {
+                if (!shouldRefresh) shouldRefresh = v.value != null;
+                v.value = null;
+            });
         } else {
+            if (!shouldRefresh) shouldRefresh = filter.value != null;
             filter.value = null;
         }
     });
+    if (shouldRefresh) fetchRoute();
 };
 
-const loadRoute = (event) => {
-    console.log('event', event);
-    loading.value = true;
-    tableParams.value = { ...tableParams.value, page: event?.first || page.value, limit: event?.rows || limit.value };
-    console.log('table param', tableParams);
-    try {
-        listRoute({ page: tableParams.page, limit: tableParams.limit })
-            .then((res) => {
-                routes.value = res.item;
-                totalRecords.value = res.totalRecord;
-                routes.value.forEach((v) => (v.createdDate = new Date(v.createdDate)));
-            })
-            .finally(() => {
-                loading.value = false;
-            });
-        /* setTimeout(async () => {
-            const response = await fetch(
-                route('admin.brands.show-brands', {
-                    page: JSON.stringify(event?.page + 1),
-                    sortField: event?.sortField,
-                    sortOrder: event?.sortOrder,
-                    filter: { brand_name: event?.filters?.brand_name.value },
-                    include: [],
-                    lazyEvent: JSON.stringify(tableParams.value)
-                })
-            ).then(async (res) => {
-                const brands = await res.json();
+const getSeverity = (status) => {
+    switch (status) {
+        case 'INACTIVE':
+            return 'danger';
+        case 'ACTIVE':
+            return 'success';
+        default:
+            return 'info';
+    }
+};
 
-                brandData.value = brands?.data.data;
-                totalRecords.value = brands?.data.total;
-                loading.value = false;
-            });
-        }, 100);*/
+const fetchRoute = async () => {
+    try {
+        loading.value = true;
+        const res = await listRoute(buildQueryParam());
+        routes.value = res.item;
+        totalRecords.value = res.totalRecord;
+        routes.value.forEach((v) => (v.createdDate = new Date(v.createdDate)));
     } catch (e) {
         console.log(e);
         routes.value = [];
         totalRecords.value = 0;
+    } finally {
+        loading.value = false;
     }
 };
 
-function expandAll() {
-    expandedRows.value = products.value.reduce((acc, p) => (acc[p.id] = true) && acc, {});
-}
-
-function collapseAll() {
-    expandedRows.value = null;
-}
-
-function formatCurrency(value) {
-    return value.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
-}
-
-const formatDate = (value) => {
-    const date = new Date(value);
-    let options = { year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
-    return new Intl.DateTimeFormat('km-KH', options).format(date);
+const manipulateTableParam = (source) => {
+    if (source) {
+        const tableParams = refTableParams.value;
+        tableParams.page = source.frist || page.value;
+        tableParams.limit = source.rows || limit.value;
+        tableParams.filters = source.filters;
+        tableParams.sortField = source.sortField;
+        tableParams.sortOrder = source.sortOrder;
+        tableParams.multiSortMeta = source.multiSortMeta;
+    } else {
+        const table = dt?.value;
+        refTableParams.value = {
+            page: table?.frist || page.value,
+            limit: table?.rows || limit.value,
+            sortField: table?.sortField || null,
+            sortOrder: table?.sortOrder || null,
+            multiSortMeta: table?.multiSortMeta || null,
+            filters: table?.filters || filters.value,
+            globalFilterFields: table?.globalFilterFields || globalFilterFields.value
+        };
+    }
 };
 
-function calculateCustomerTotal(name) {
-    let total = 0;
-    if (customers3.value) {
-        for (let customer of customers3.value) {
-            if (customer.representative.name === name) {
-                total++;
+const buildQueryParam = () => {
+    const filterParam = [];
+    const tableParams = refTableParams.value;
+    Object.entries(tableParams.filters).forEach(([key, obj]) => {
+        const conditions = obj.constraints ? obj.constraints.filter((v) => v.value != null && v.value !== '' && v.matchMode) : null;
+        const value = obj.value;
+        const matchMode = obj.matchMode;
+        const operator = obj.operator || 'AND';
+        const dataType = mapFilterType.value.get(key);
+        const filterValues = [];
+        if (value != null && value !== '' && matchMode) {
+            filterValues.push({ value: converter(dataType, value), match_mode: camelToSnake(matchMode).toUpperCase() });
+        } else if (conditions) {
+            for (let con of conditions) {
+                filterValues.push({ value: converter(dataType, con.value), match_mode: camelToSnake(con.matchMode).toUpperCase() });
             }
         }
-    }
-
-    return total;
-}
+        if (filterValues.length > 0) {
+            if (key === 'global') {
+                for (let field of globalFilterFields.value) {
+                    const fieldType = mapFilterType.value.get(field);
+                    const globalFilterValues = [];
+                    for (let values of filterValues) {
+                        globalFilterValues.push({ value: converter(fieldType, values.value), match_mode: values.match_mode });
+                    }
+                    filterParam.push({ field: field, operator: 'OR', filter_values: globalFilterValues });
+                }
+            } else {
+                filterParam.push({ field: key, operator: operator.toUpperCase(), filter_values: filterValues });
+            }
+        }
+    });
+    const sortField = tableParams.sortField === 'id' ? 'name' : tableParams.sortField || null;
+    const sortOrder = tableParams.sortOrder;
+    let sortDirection = null;
+    if (sortOrder === 1) sortDirection = 'ASC';
+    else if (sortOrder === -1) sortDirection = 'DESC';
+    const queryParam = { page: tableParams.page, limit: tableParams.limit, sort_field: sortField, sort_direction: sortDirection, filters: JSON.stringify(filterParam) };
+    console.log('filter parameter:', filterParam);
+    console.log('query parameter:', queryParam);
+    return queryParam;
+};
 </script>
 
 <template>
@@ -240,6 +226,7 @@ function calculateCustomerTotal(name) {
             rowHover
             showGridlines
             stripedRows
+            removableSort
             dataKey="id"
             v-model:filters="filters"
             ref="dt"
@@ -248,18 +235,18 @@ function calculateCustomerTotal(name) {
         >
             <template #header>
                 <div class="flex justify-between">
-                    <Button type="button" icon="pi pi-filter-slash" label="Clear" outlined @click="clearFilter()" />
+                    <Button type="button" icon="pi pi-filter-slash" label="Clear" outlined @click="onClearFilter()" />
                     <IconField>
                         <InputIcon>
                             <i class="pi pi-search" />
                         </InputIcon>
-                        <InputText v-model="filters['global'].value" placeholder="Keyword Search" />
+                        <InputText v-model="filters.global.value" placeholder="Keyword Search" />
                     </IconField>
                 </div>
             </template>
             <template #empty>No route found</template>
             <template #loading>Loading route data. Please wait.</template>
-            <Column field="id" filterField="id" header="ID" style="min-width: 12rem">
+            <Column field="id" filterField="name" header="ID" :filterMatchModeOptions="filterNameMatchMode" sortable style="min-width: 12rem">
                 <template #body="{ data }">
                     {{ data.id }}
                 </template>
@@ -267,7 +254,7 @@ function calculateCustomerTotal(name) {
                     <InputText v-model="filterModel.value" type="text" placeholder="Search by id" />
                 </template>
             </Column>
-            <Column field="path" filterField="path" header="Path" style="min-width: 12rem">
+            <Column field="path" filterField="path" header="Path" sortable :showFilterMatchModes="false" style="min-width: 12rem">
                 <template #body="{ data }">
                     {{ data.path }}
                 </template>
@@ -275,7 +262,7 @@ function calculateCustomerTotal(name) {
                     <InputText v-model="filterModel.value" type="text" placeholder="Search by path" />
                 </template>
             </Column>
-            <Column field="url" filterField="url" header="URL" style="min-width: 12rem">
+            <Column field="url" filterField="url" header="URL" :showFilterMatchModes="false" style="min-width: 12rem">
                 <template #body="{ data }">
                     {{ data.url }}
                 </template>
@@ -283,7 +270,7 @@ function calculateCustomerTotal(name) {
                     <InputText v-model="filterModel.value" type="text" placeholder="Search by url" />
                 </template>
             </Column>
-            <Column field="connectionReadTimeout" filterField="readTimeout" header="Read Timeout" style="min-width: 12rem">
+            <Column field="connectionReadTimeout" filterField="connectionReadTimeout" header="Read Timeout" :showFilterMatchModes="false" style="min-width: 12rem">
                 <template #body="{ data }">
                     {{ data.connectionReadTimeout }}
                 </template>
@@ -291,7 +278,7 @@ function calculateCustomerTotal(name) {
                     <InputText v-model="filterModel.value" type="text" placeholder="Search by read timeout" />
                 </template>
             </Column>
-            <Column field="excludeHeader" filterField="excludeHeader" header="Exclude Header" style="min-width: 12rem">
+            <Column field="excludeHeader" filterField="excludeHeader" header="Exclude Header" :showFilterMatchModes="false" style="min-width: 12rem">
                 <template #body="{ data }">
                     {{ data.excludeHeader }}
                 </template>
@@ -299,7 +286,7 @@ function calculateCustomerTotal(name) {
                     <InputText v-model="filterModel.value" type="text" placeholder="Search by exclude header" />
                 </template>
             </Column>
-            <Column field="requiredHeader" filterField="requiredHeader" header="Required Header" style="min-width: 15rem">
+            <Column field="requiredHeader" filterField="requiredHeader" header="Required Header" :showFilterMatchModes="false" style="min-width: 15rem">
                 <template #body="{ data }">
                     {{ data.requiredHeader }}
                 </template>
@@ -307,7 +294,7 @@ function calculateCustomerTotal(name) {
                     <InputText v-model="filterModel.value" type="text" placeholder="Search by required header" />
                 </template>
             </Column>
-            <Column field="whitelistIp" filterField="whitelistIp" header="WhitelistIp" style="min-width: 12rem">
+            <Column field="whitelistIp" filterField="whitelistIp" header="WhitelistIp" :showFilterMatchModes="false" style="min-width: 12rem">
                 <template #body="{ data }">
                     {{ data.whitelistIp }}
                 </template>
@@ -315,7 +302,7 @@ function calculateCustomerTotal(name) {
                     <InputText v-model="filterModel.value" type="text" placeholder="Search by white list Ip" />
                 </template>
             </Column>
-            <Column field="createdBy" filterField="createdBy" header="Created By" style="min-width: 12rem">
+            <Column field="createdBy" filterField="createdBy" header="Created By" :showFilterMatchModes="false" style="min-width: 12rem">
                 <template #body="{ data }">
                     {{ data.createdBy }}
                 </template>
@@ -323,7 +310,7 @@ function calculateCustomerTotal(name) {
                     <InputText v-model="filterModel.value" type="text" placeholder="Search by created by" />
                 </template>
             </Column>
-            <Column field="createdDate" filterField="createdDate" header="Created Date" dataType="date" style="min-width: 15rem">
+            <Column field="createdDate" filterField="createdDate" header="Created Date" :showFilterMatchModes="false" dataType="date" style="min-width: 15rem">
                 <template #body="{ data }">
                     {{ formatDate(data.createdDate) }}
                 </template>
@@ -337,15 +324,14 @@ function calculateCustomerTotal(name) {
                     <p v-if="!data.stripPrefix" style="color: #b91c1c">NO</p>
                 </template>
                 <template #filter="{ filterModel }">
-                    <label for="stripPrefix-filter" class="font-bold"> Strip Prefix </label>
                     <div class="flex flex-wrap gap-4">
                         <div class="flex items-center gap-2">
-                            <RadioButton v-model="filterModel.value" inputId="yes" name="stripPrefix" :value="true" />
-                            <label for="yes" style="color: #15803d">YES</label>
+                            <RadioButton v-model="filterModel.value" inputId="strip-prefix-yes" name="stripPrefix" :value="true" />
+                            <label for="strip-prefix-yes" style="color: #15803d">YES</label>
                         </div>
                         <div class="flex items-center gap-2">
-                            <RadioButton v-model="filterModel.value" inputId="no" name="stripPrefix" :value="false" />
-                            <label for="no" style="color: #b91c1c">NO</label>
+                            <RadioButton v-model="filterModel.value" inputId="strip-prefix-no" name="stripPrefix" :value="false" />
+                            <label for="strip-prefix-no" style="color: #b91c1c">NO</label>
                         </div>
                     </div>
                 </template>
@@ -356,20 +342,19 @@ function calculateCustomerTotal(name) {
                     <p v-if="!data.enableRedirect" style="color: #b91c1c">NO</p>
                 </template>
                 <template #filter="{ filterModel }">
-                    <label for="enableRedirect-filter" class="font-bold"> Strip Prefix </label>
                     <div class="flex flex-wrap gap-4">
                         <div class="flex items-center gap-2">
-                            <RadioButton v-model="filterModel.value" inputId="yes" name="enableRedirect" :value="true" />
-                            <label for="yes" style="color: #15803d">YES</label>
+                            <RadioButton v-model="filterModel.value" inputId="enable-redirect-yes" name="enableRedirect" :value="true" />
+                            <label for="enable-redirect-yes" style="color: #15803d">YES</label>
                         </div>
                         <div class="flex items-center gap-2">
-                            <RadioButton v-model="filterModel.value" inputId="no" name="enableRedirect" :value="false" />
-                            <label for="no" style="color: #b91c1c">NO</label>
+                            <RadioButton v-model="filterModel.value" inputId="enable-redirect-no" name="enableRedirect" :value="false" />
+                            <label for="enable-redirect-no" style="color: #b91c1c">NO</label>
                         </div>
                     </div>
                 </template>
             </Column>
-            <Column field="status" filterField="status" header="Status" :filterMenuStyle="{ width: '14rem' }" style="min-width: 12rem">
+            <Column field="status" filterField="status" header="Status" :showFilterMatchModes="false" style="min-width: 12rem">
                 <template #body="{ data }">
                     <Tag :value="data.status" :severity="getSeverity(data.status)" />
                 </template>
