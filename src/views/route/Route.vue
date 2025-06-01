@@ -6,12 +6,6 @@ import { camelToSnake } from '@/utils/StringUtil';
 import { FilterMatchMode, FilterOperator } from '@primevue/core/api';
 import { onBeforeMount, reactive, ref, watch } from 'vue';
 
-const customers1 = ref(null);
-const customers2 = ref(null);
-const customers3 = ref(null);
-const balanceFrozen = ref(false);
-const products = ref(null);
-const expandedRows = ref([]);
 const statuses = reactive(['ACTIVE', 'INACTIVE']);
 
 const dt = ref(null);
@@ -55,7 +49,8 @@ watch(
         globalSearchDelay = setTimeout(() => {
             console.log('watcher global search', newValue);
             console.log('object table', dt.value);
-            //loadRoute();
+            manipulateTableParam(dt.value);
+            fetchRoute();
         }, 500);
     }
 );
@@ -67,14 +62,6 @@ onBeforeMount(() => {
         mapFilterType.value.set(key, dataType);
     });
     fetchRoute();
-    /*ProductService.getProductsWithOrdersSmall().then((data) => (products.value = data));
-    CustomerService.getCustomersLarge().then((data) => {
-        customers1.value = data;
-        loadingRoute.value = false;
-        customers1.value.forEach((customer) => (customer.date = new Date(customer.date)));
-    });
-    CustomerService.getCustomersLarge().then((data) => (customers2.value = data));
-    CustomerService.getCustomersMedium().then((data) => (customers3.value = data));*/
 });
 
 const onPage = (event) => {
@@ -170,29 +157,22 @@ const buildQueryParam = () => {
     Object.entries(tableParams.filters).forEach(([key, obj]) => {
         const conditions = obj.constraints ? obj.constraints.filter((v) => v.value != null && v.value !== '' && v.matchMode) : null;
         const value = obj.value;
-        const matchMode = obj.matchMode;
         const operator = obj.operator || 'AND';
-        const dataType = mapFilterType.value.get(key);
-        const filterValues = [];
+        let dataType = mapFilterType.value.get(key);
+        let matchMode = obj.matchMode;
         if (value != null && value !== '' && matchMode) {
-            filterValues.push({ value: converter(dataType, value), match_mode: camelToSnake(matchMode).toUpperCase() });
-        } else if (conditions) {
-            for (let con of conditions) {
-                filterValues.push({ value: converter(dataType, con.value), match_mode: camelToSnake(con.matchMode).toUpperCase() });
-            }
-        }
-        if (filterValues.length > 0) {
             if (key === 'global') {
                 for (let field of globalFilterFields.value) {
-                    const fieldType = mapFilterType.value.get(field);
-                    const globalFilterValues = [];
-                    for (let values of filterValues) {
-                        globalFilterValues.push({ value: converter(fieldType, values.value), match_mode: values.match_mode });
-                    }
-                    filterParam.push({ field: field, operator: 'OR', filter_values: globalFilterValues });
+                    dataType = mapFilterType.value.get(field);
+                    matchMode = dataType === 'number' || dataType === 'boolean' ? FilterMatchMode.EQUALS : matchMode;
+                    filterParam.push({ field: field, value: converter(dataType, value), operator: 'OR', match_mode: camelToSnake(matchMode).toUpperCase() });
                 }
             } else {
-                filterParam.push({ field: key, operator: operator.toUpperCase(), filter_values: filterValues });
+                filterParam.push({ field: key, value: converter(dataType, value), operator: operator.toUpperCase(), match_mode: camelToSnake(matchMode).toUpperCase() });
+            }
+        } else if (conditions) {
+            for (let con of conditions) {
+                filterParam.push({ field: key, value: converter(dataType, con.value), operator: operator.toUpperCase(), match_mode: camelToSnake(con.matchMode).toUpperCase() });
             }
         }
     });
