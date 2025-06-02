@@ -3,7 +3,7 @@ export const converter = (dataType, value) => {
     if (dataType === 'number') {
         return isValidNumber(value) ? Number(value) : 0;
     } else if (dataType === 'boolean') {
-        return Boolean(value);
+        return value === 'true' || value === 'false' ? Boolean(value) : false;
     } else if (dataType === 'date') {
         return formatDateWithTime(value);
     }

@@ -5,9 +5,12 @@ import { converter } from '@/utils/ObjectUtil';
 import { camelToSnake } from '@/utils/StringUtil';
 import { FilterMatchMode, FilterOperator } from '@primevue/core/api';
 import { onBeforeMount, reactive, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
 
 const statuses = reactive(['ACTIVE', 'INACTIVE']);
 
+const displayDialog = ref(false);
+const dialogTitle = ref('Add route');
 const dt = ref(null);
 const routes = ref(null);
 const loading = ref(false);
@@ -15,7 +18,7 @@ const page = ref(1);
 const limit = ref(10);
 const totalRecords = ref(0);
 const mapFilterType = ref(new Map());
-const refTableParams = ref({});
+const tableParam = ref({});
 const globalFilterFields = ref(['name', 'path', 'url', 'connectionReadTimeout', 'createdBy', 'excludeHeader', 'requiredHeader', 'whitelistIp', 'status']);
 const filterNameMatchMode = ref([
     { label: 'Contains', value: FilterMatchMode.CONTAINS },
@@ -40,51 +43,50 @@ const filters = ref({
     createdDate: { value: null, matchMode: FilterMatchMode.DATE_IS, dataType: 'date' }
 });
 
-let globalSearchDelay;
+const router = useRouter();
+
+let delaySearch;
 
 watch(
     () => filters.value.global.value,
     (newValue) => {
-        clearTimeout(globalSearchDelay);
-        globalSearchDelay = setTimeout(() => {
-            console.log('watcher global search', newValue);
-            console.log('object table', dt.value);
+        clearTimeout(delaySearch);
+        delaySearch = setTimeout(() => {
             manipulateTableParam(dt.value);
-            fetchRoute();
+            console.log('global search', tableParam.value);
+            if (newValue != null) fetchRoute();
         }, 500);
     }
 );
 
 onBeforeMount(() => {
-    manipulateTableParam();
     Object.entries(filters.value).forEach(([key, obj]) => {
         const dataType = obj.dataType || 'string';
         mapFilterType.value.set(key, dataType);
     });
+    manipulateTableParam();
     fetchRoute();
 });
 
-const onPage = (event) => {
+function onPage(event) {
     manipulateTableParam(event);
-    console.log('onPage', refTableParams.value);
+    console.log('onPage', tableParam.value);
     fetchRoute();
-};
+}
 
-const onSort = (event) => {
+function onSort(event) {
     manipulateTableParam(event);
-    console.log('onSort', refTableParams.value);
+    console.log('onSort', tableParam.value);
     fetchRoute();
-};
+}
 
-const onFilter = (event) => {
+function onFilter(event) {
     manipulateTableParam(event);
-    console.log('onFilter', refTableParams.value);
+    console.log('onFilter', tableParam.value);
     fetchRoute();
-    // event.filters.global = globalFilter.value;
-    //apiFetch(event, true);
-};
+}
 
-const onClearFilter = () => {
+function onClearFilter() {
     let shouldRefresh = false;
     Object.keys(filters.value).forEach((key) => {
         const filter = filters.value[key];
@@ -99,9 +101,9 @@ const onClearFilter = () => {
         }
     });
     if (shouldRefresh) fetchRoute();
-};
+}
 
-const getSeverity = (status) => {
+function getSeverity(status) {
     switch (status) {
         case 'INACTIVE':
             return 'danger';
@@ -110,9 +112,18 @@ const getSeverity = (status) => {
         default:
             return 'info';
     }
-};
+}
 
-const fetchRoute = async () => {
+function showDialog() {
+    //displayDialog.value = true;
+    router.push('/uikit/formlayout');
+}
+
+function closeDialog() {
+    displayDialog.value = false;
+}
+
+async function fetchRoute() {
     try {
         loading.value = true;
         const res = await listRoute(buildQueryParam());
@@ -126,20 +137,20 @@ const fetchRoute = async () => {
     } finally {
         loading.value = false;
     }
-};
+}
 
-const manipulateTableParam = (source) => {
+function manipulateTableParam(source) {
     if (source) {
-        const tableParams = refTableParams.value;
-        tableParams.page = source.frist || page.value;
-        tableParams.limit = source.rows || limit.value;
-        tableParams.filters = source.filters;
-        tableParams.sortField = source.sortField;
-        tableParams.sortOrder = source.sortOrder;
-        tableParams.multiSortMeta = source.multiSortMeta;
+        const param = tableParam.value;
+        param.page = source.frist || page.value;
+        param.limit = source.rows || limit.value;
+        param.filters = source.filters;
+        param.sortField = source.sortField;
+        param.sortOrder = source.sortOrder;
+        param.multiSortMeta = source.multiSortMeta;
     } else {
         const table = dt?.value;
-        refTableParams.value = {
+        tableParam.value = {
             page: table?.frist || page.value,
             limit: table?.rows || limit.value,
             sortField: table?.sortField || null,
@@ -149,23 +160,23 @@ const manipulateTableParam = (source) => {
             globalFilterFields: table?.globalFilterFields || globalFilterFields.value
         };
     }
-};
+}
 
-const buildQueryParam = () => {
+function buildQueryParam() {
     const filterParam = [];
-    const tableParams = refTableParams.value;
-    Object.entries(tableParams.filters).forEach(([key, obj]) => {
+    const param = tableParam.value;
+    Object.entries(param.filters).forEach(([key, obj]) => {
         const conditions = obj.constraints ? obj.constraints.filter((v) => v.value != null && v.value !== '' && v.matchMode) : null;
         const value = obj.value;
         const operator = obj.operator || 'AND';
-        let dataType = mapFilterType.value.get(key);
-        let matchMode = obj.matchMode;
+        const matchMode = obj.matchMode;
+        const dataType = mapFilterType.value.get(key);
         if (value != null && value !== '' && matchMode) {
             if (key === 'global') {
                 for (let field of globalFilterFields.value) {
-                    dataType = mapFilterType.value.get(field);
-                    matchMode = dataType === 'number' || dataType === 'boolean' ? FilterMatchMode.EQUALS : matchMode;
-                    filterParam.push({ field: field, value: converter(dataType, value), operator: 'OR', match_mode: camelToSnake(matchMode).toUpperCase() });
+                    let fieldType = mapFilterType.value.get(field);
+                    let fieldMatchMode = fieldType === 'number' || fieldType === 'boolean' ? FilterMatchMode.EQUALS : matchMode;
+                    filterParam.push({ field: field, value: converter(fieldType, value), operator: 'OR', match_mode: camelToSnake(fieldMatchMode).toUpperCase() });
                 }
             } else {
                 filterParam.push({ field: key, value: converter(dataType, value), operator: operator.toUpperCase(), match_mode: camelToSnake(matchMode).toUpperCase() });
@@ -176,21 +187,45 @@ const buildQueryParam = () => {
             }
         }
     });
-    const sortField = tableParams.sortField === 'id' ? 'name' : tableParams.sortField || null;
-    const sortOrder = tableParams.sortOrder;
+    const sortField = param.sortField === 'id' ? 'name' : param.sortField || null;
+    const sortOrder = param.sortOrder;
     let sortDirection = null;
     if (sortOrder === 1) sortDirection = 'ASC';
     else if (sortOrder === -1) sortDirection = 'DESC';
-    const queryParam = { page: tableParams.page, limit: tableParams.limit, sort_field: sortField, sort_direction: sortDirection, filters: JSON.stringify(filterParam) };
+    const queryParam = { page: param.page, limit: param.limit, sort_field: sortField, sort_direction: sortDirection, filters: JSON.stringify(filterParam) };
     console.log('filter parameter:', filterParam);
     console.log('query parameter:', queryParam);
     return queryParam;
-};
+}
 </script>
 
 <template>
     <div class="card">
-        <div class="font-semibold text-xl mb-4">Route</div>
+        <div class="flex justify-between items-center w-full">
+            <div class="font-semibold text-xl">Route</div>
+            <Button label="Add" icon="pi pi-plus" style="margin-bottom: 5px" @click="showDialog" />
+        </div>
+        <Dialog :header="dialogTitle" v-model:visible="displayDialog" :breakpoints="{ '960px': '75vw' }" :style="{ width: '30vw' }" :modal="true">
+            <Fluid>
+                <div class="card flex flex-col gap-4">
+                    <div class="grid grid-cols-12 gap-2">
+                        <label for="name3" class="flex items-center col-span-12 mb-2 md:col-span-2 md:mb-0">ID</label>
+                        <div class="col-span-12 md:col-span-10">
+                            <InputText id="name3" type="text" />
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-12 gap-2">
+                        <label for="email3" class="flex items-center col-span-12 mb-2 md:col-span-2 md:mb-0">Path</label>
+                        <div class="col-span-12 md:col-span-10">
+                            <InputText id="email3" type="text" />
+                        </div>
+                    </div>
+                </div>
+            </Fluid>
+            <template #footer>
+                <Button label="Save" @click="closeDialog" />
+            </template>
+        </Dialog>
         <DataTable
             :value="routes"
             :rowsPerPageOptions="[5, 10, 20, 50]"
@@ -250,7 +285,7 @@ const buildQueryParam = () => {
                     <InputText v-model="filterModel.value" type="text" placeholder="Search by url" />
                 </template>
             </Column>
-            <Column field="connectionReadTimeout" filterField="connectionReadTimeout" header="Read Timeout" :showFilterMatchModes="false" style="min-width: 12rem">
+            <Column field="connectionReadTimeout" filterField="connectionReadTimeout" header="Read Timeout" sortable :showFilterMatchModes="false" style="min-width: 13rem">
                 <template #body="{ data }">
                     {{ data.connectionReadTimeout }}
                 </template>
@@ -346,206 +381,8 @@ const buildQueryParam = () => {
                     </Select>
                 </template>
             </Column>
-            <!-- <Column header="Country" filterField="country.name" style="min-width: 12rem">
-                <template #body="{ data }">
-                    <div class="flex items-center gap-2">
-                        <img alt="flag" src="https://primefaces.org/cdn/primevue/images/flag/flag_placeholder.png" :class="`flag flag-${data.country.code}`" style="width: 24px" />
-                        <span>{{ data.country.name }}</span>
-                    </div>
-                </template>
-                <template #filter="{ filterModel }">
-                    <InputText v-model="filterModel.value" type="text" placeholder="Search by country" />
-                </template>
-                <template #filterclear="{ filterCallback }">
-                    <Button type="button" icon="pi pi-times" @click="filterCallback()" severity="secondary"></Button>
-                </template>
-                <template #filterapply="{ filterCallback }">
-                    <Button type="button" icon="pi pi-check" @click="filterCallback()" severity="success"></Button>
-                </template>
-            </Column>
-            <Column header="Agent" filterField="representative" :showFilterMatchModes="false" :filterMenuStyle="{ width: '14rem' }" style="min-width: 14rem">
-                <template #body="{ data }">
-                    <div class="flex items-center gap-2">
-                        <img :alt="data.representative.name" :src="`https://primefaces.org/cdn/primevue/images/avatar/${data.representative.image}`" style="width: 32px" />
-                        <span>{{ data.representative.name }}</span>
-                    </div>
-                </template>
-                <template #filter="{ filterModel }">
-                    <MultiSelect v-model="filterModel.value" :options="representatives" optionLabel="name" placeholder="Any">
-                        <template #option="slotProps">
-                            <div class="flex items-center gap-2">
-                                <img :alt="slotProps.option.name" :src="`https://primefaces.org/cdn/primevue/images/avatar/${slotProps.option.image}`" style="width: 32px" />
-                                <span>{{ slotProps.option.name }}</span>
-                            </div>
-                        </template>
-                    </MultiSelect>
-                </template>
-            </Column>
-            <Column header="Date" filterField="date" dataType="date" style="min-width: 10rem">
-                <template #body="{ data }">
-                    {{ formatDate(data.date) }}
-                </template>
-                <template #filter="{ filterModel }">
-                    <DatePicker v-model="filterModel.value" dateFormat="mm/dd/yy" placeholder="mm/dd/yyyy" />
-                </template>
-            </Column>
-            <Column header="Balance" filterField="balance" dataType="numeric" style="min-width: 10rem">
-                <template #body="{ data }">
-                    {{ formatCurrency(data.balance) }}
-                </template>
-                <template #filter="{ filterModel }">
-                    <InputNumber v-model="filterModel.value" mode="currency" currency="USD" locale="en-US" />
-                </template>
-            </Column>
-            <Column header="Status" field="status" :filterMenuStyle="{ width: '14rem' }" style="min-width: 12rem">
-                <template #body="{ data }">
-                    <Tag :value="data.status" :severity="getSeverity(data.status)" />
-                </template>
-                <template #filter="{ filterModel }">
-                    <Select v-model="filterModel.value" :options="statuses" placeholder="Select One" showClear>
-                        <template #option="slotProps">
-                            <Tag :value="slotProps.option" :severity="getSeverity(slotProps.option)" />
-                        </template>
-                    </Select>
-                </template>
-            </Column>
-            <Column field="activity" header="Activity" :showFilterMatchModes="false" style="min-width: 12rem">
-                <template #body="{ data }">
-                    <ProgressBar :value="data.activity" :showValue="false" style="height: 6px"></ProgressBar>
-                </template>
-                <template #filter="{ filterModel }">
-                    <Slider v-model="filterModel.value" range class="m-4"></Slider>
-                    <div class="flex items-center justify-between px-2">
-                        <span>{{ filterModel.value ? filterModel.value[0] : 0 }}</span>
-                        <span>{{ filterModel.value ? filterModel.value[1] : 100 }}</span>
-                    </div>
-                </template>
-            </Column>
-            <Column field="verified" header="Verified" dataType="boolean" bodyClass="text-center" style="min-width: 8rem">
-                <template #body="{ data }">
-                    <i class="pi" :class="{ 'pi-check-circle text-green-500 ': data.verified, 'pi-times-circle text-red-500': !data.verified }"></i>
-                </template>
-                <template #filter="{ filterModel }">
-                    <label for="verified-filter" class="font-bold"> Verified </label>
-                    <Checkbox v-model="filterModel.value" :indeterminate="filterModel.value === null" binary inputId="verified-filter" />
-                </template>
-            </Column> -->
         </DataTable>
     </div>
-
-    <!-- <div class="card">
-        <div class="font-semibold text-xl mb-4">Frozen Columns</div>
-        <ToggleButton v-model="balanceFrozen" onIcon="pi pi-lock" offIcon="pi pi-lock-open" onLabel="Balance" offLabel="Balance" />
-
-        <DataTable :value="customers2" scrollable scrollHeight="400px" class="mt-6">
-            <Column field="name" header="Name" style="min-width: 200px" frozen class="font-bold"></Column>
-            <Column field="id" header="Id" style="min-width: 100px"></Column>
-            <Column field="name" header="Name" style="min-width: 200px"></Column>
-            <Column field="country.name" header="Country" style="min-width: 200px"></Column>
-            <Column field="date" header="Date" style="min-width: 200px"></Column>
-            <Column field="company" header="Company" style="min-width: 200px"></Column>
-            <Column field="status" header="Status" style="min-width: 200px"></Column>
-            <Column field="activity" header="Activity" style="min-width: 200px"></Column>
-            <Column field="representative.name" header="Representative" style="min-width: 200px"></Column>
-            <Column field="balance" header="Balance" style="min-width: 200px" alignFrozen="right" :frozen="balanceFrozen">
-                <template #body="{ data }">
-                    <span class="font-bold">{{ formatCurrency(data.balance) }}</span>
-                </template>
-            </Column>
-        </DataTable>
-    </div>
-
-    <div class="card">
-        <div class="font-semibold text-xl mb-4">Row Expansion</div>
-        <DataTable v-model:expandedRows="expandedRows" :value="products" dataKey="id" tableStyle="min-width: 60rem">
-            <template #header>
-                <div class="flex flex-wrap justify-end gap-2">
-                    <Button text icon="pi pi-plus" label="Expand All" @click="expandAll" />
-                    <Button text icon="pi pi-minus" label="Collapse All" @click="collapseAll" />
-                </div>
-            </template>
-            <Column expander style="width: 5rem" />
-            <Column field="name" header="Name"></Column>
-            <Column header="Image">
-                <template #body="slotProps">
-                    <img :src="`https://primefaces.org/cdn/primevue/images/product/${slotProps.data.image}`" :alt="slotProps.data.image" class="shadow-lg" width="64" />
-                </template>
-            </Column>
-            <Column field="price" header="Price">
-                <template #body="slotProps">
-                    {{ formatCurrency(slotProps.data.price) }}
-                </template>
-            </Column>
-            <Column field="category" header="Category"></Column>
-            <Column field="rating" header="Reviews">
-                <template #body="slotProps">
-                    <Rating :modelValue="slotProps.data.rating" readonly />
-                </template>
-            </Column>
-            <Column header="Status">
-                <template #body="slotProps">
-                    <Tag :value="slotProps.data.inventoryStatus" :severity="getStockSeverity(slotProps.data)" />
-                </template>
-            </Column>
-            <template #expansion="slotProps">
-                <div class="p-4">
-                    <h5>Orders for {{ slotProps.data.name }}</h5>
-                    <DataTable :value="slotProps.data.orders">
-                        <Column field="id" header="Id" sortable></Column>
-                        <Column field="customer" header="Customer" sortable></Column>
-                        <Column field="date" header="Date" sortable></Column>
-                        <Column field="amount" header="Amount" sortable>
-                            <template #body="slotProps">
-                                {{ formatCurrency(slotProps.data.amount) }}
-                            </template>
-                        </Column>
-                        <Column field="status" header="Status" sortable>
-                            <template #body="slotProps">
-                                <Tag :value="slotProps.data.status.toLowerCase()" :severity="getOrderSeverity(slotProps.data)" />
-                            </template>
-                        </Column>
-                        <Column headerStyle="width:4rem">
-                            <template #body>
-                                <Button icon="pi pi-search" />
-                            </template>
-                        </Column>
-                    </DataTable>
-                </div>
-            </template>
-        </DataTable>
-    </div>
-
-    <div class="card">
-        <div class="font-semibold text-xl mb-4">Grouping</div>
-        <DataTable :value="customers3" rowGroupMode="subheader" groupRowsBy="representative.name" sortMode="single" sortField="representative.name" :sortOrder="1" scrollable scrollHeight="400px" tableStyle="min-width: 50rem">
-            <template #groupheader="slotProps">
-                <div class="flex items-center gap-2">
-                    <img :alt="slotProps.data.representative.name" :src="`https://primefaces.org/cdn/primevue/images/avatar/${slotProps.data.representative.image}`" width="32" style="vertical-align: middle" />
-                    <span>{{ slotProps.data.representative.name }}</span>
-                </div>
-            </template>
-            <Column field="representative.name" header="Representative"></Column>
-            <Column field="name" header="Name" style="min-width: 200px"></Column>
-            <Column field="country" header="Country" style="min-width: 200px">
-                <template #body="slotProps">
-                    <div class="flex items-center gap-2">
-                        <img alt="flag" src="https://primefaces.org/cdn/primevue/images/flag/flag_placeholder.png" :class="`flag flag-${slotProps.data.country.code}`" style="width: 24px" />
-                        <span>{{ slotProps.data.country.name }}</span>
-                    </div>
-                </template>
-            </Column>
-            <Column field="company" header="Company" style="min-width: 200px"></Column>
-            <Column field="status" header="Status" style="min-width: 200px">
-                <template #body="slotProps">
-                    <Tag :value="slotProps.data.status" :severity="getSeverity(slotProps.data.status)" />
-                </template>
-            </Column>
-            <Column field="date" header="Date" style="min-width: 200px"></Column>
-            <template #groupfooter="slotProps">
-                <div class="flex justify-end font-bold w-full">Total Customers: {{ calculateCustomerTotal(slotProps.data.representative.name) }}</div>
-            </template>
-        </DataTable>
-    </div> -->
 </template>
 
 <style scoped lang="scss">
