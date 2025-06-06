@@ -1,25 +1,39 @@
 <script setup>
-import { ProductService } from '@/service/ProductService';
-import { listRoute } from '@/service/RouteService';
+import { routeAPI } from '@/service/RouteService';
 import { formatDate } from '@/utils/DateUtil';
 import { converter } from '@/utils/ObjectUtil';
-import { camelToSnake } from '@/utils/StringUtil';
+import { camelToSnake, UrlUtil } from '@/utils/StringUtil';
+import { showToast } from '@/utils/ToastService';
 import { FilterMatchMode, FilterOperator } from '@primevue/core/api';
-import { useToast } from 'primevue/usetoast';
-import { onBeforeMount, onMounted, reactive, ref, watch } from 'vue';
+import { onBeforeMount, onMounted, ref, watch } from 'vue';
 
 const displayDialog = ref(false);
 const dialogTitle = ref('Add route');
 const isEdit = ref(false);
 const dt = ref(null);
 const routes = ref(null);
-const loading = ref(false);
+const loadingTable = ref(false);
+const loadingSubmit = ref(false);
 const page = ref(0);
 const limit = ref(10);
 const totalRecords = ref(0);
 const mapFilterType = ref(new Map());
 const tableParam = ref({});
-const statuses = reactive(['ACTIVE', 'INACTIVE']);
+
+const statuses = ref(['ACTIVE', 'INACTIVE']);
+const dropDownstatuses = ref([
+    { label: 'ACTIVE', value: 'ACTIVE' },
+    { label: 'INACTIVE', value: 'INACTIVE' }
+]);
+
+const errorMessage = ref({ id: null, path: null, url: null });
+const routeObj = ref({});
+const selectedRoute = ref();
+const submitted = ref(false);
+const displayConfirmDelete = ref(false);
+const displayDeleteSelected = ref(false);
+
+const isFilter = ref(false);
 const globalFilterFields = ref(['name', 'path', 'url', 'connectionReadTimeout', 'createdBy', 'excludeHeader', 'requiredHeader', 'whitelistIp', 'status']);
 const filterNameMatchMode = ref([
     { label: 'Contains', value: FilterMatchMode.CONTAINS },
@@ -52,15 +66,15 @@ watch(
         clearTimeout(delaySearch);
         delaySearch = setTimeout(() => {
             manipulateTableParam(dt.value);
-            console.log('global search', tableParam.value);
-            if (newValue != null) fetchRoute();
+            if (newValue != null) {
+                fetchRoute();
+                isFilter.value = true;
+            }
         }, 500);
     }
 );
 
-onMounted(() => {
-    ProductService.getProducts().then((data) => (products.value = data));
-});
+onMounted(() => {});
 
 onBeforeMount(() => {
     Object.entries(filters.value).forEach(([key, obj]) => {
@@ -73,24 +87,23 @@ onBeforeMount(() => {
 
 function onPage(event) {
     manipulateTableParam(event);
-    console.log('onPage', tableParam.value);
     fetchRoute();
 }
 
 function onSort(event) {
     manipulateTableParam(event);
-    console.log('onSort', tableParam.value);
     fetchRoute();
 }
 
 function onFilter(event) {
     manipulateTableParam(event);
-    console.log('onFilter', tableParam.value);
     fetchRoute();
+    isFilter.value = true;
 }
 
 function onClearFilter() {
     let shouldRefresh = false;
+    isFilter.value = false;
     selectedRoute.value = null;
     Object.keys(filters.value).forEach((key) => {
         const filter = filters.value[key];
@@ -114,30 +127,14 @@ function getStatusSeverity(status) {
         case 'ACTIVE':
             return 'success';
         default:
-            return 'info';
-    }
-}
-
-async function fetchRoute() {
-    try {
-        loading.value = true;
-        const res = await listRoute(buildQueryParam());
-        routes.value = res.item;
-        totalRecords.value = res.totalRecord;
-        routes.value.forEach((v) => (v.createdDate = new Date(v.createdDate)));
-    } catch (e) {
-        console.log(e);
-        routes.value = [];
-        totalRecords.value = 0;
-    } finally {
-        loading.value = false;
+            return 'secondary';
     }
 }
 
 function manipulateTableParam(source) {
     if (source) {
         const param = tableParam.value;
-        param.page = source.frist || page.value;
+        param.page = source.page || page.value;
         param.limit = source.rows || limit.value;
         param.filters = source.filters;
         param.sortField = source.sortField;
@@ -146,7 +143,7 @@ function manipulateTableParam(source) {
     } else {
         const table = dt?.value;
         tableParam.value = {
-            page: table?.frist || page.value,
+            page: table?.page || page.value,
             limit: table?.rows || limit.value,
             sortField: table?.sortField || null,
             sortOrder: table?.sortOrder || null,
@@ -187,110 +184,177 @@ function buildQueryParam() {
     let sortDirection = null;
     if (sortOrder === 1) sortDirection = 'ASC';
     else if (sortOrder === -1) sortDirection = 'DESC';
-    const queryParam = { page: param.page, limit: param.limit, sort_field: sortField, sort_direction: sortDirection, filters: JSON.stringify(filterParam) };
-    console.log('filter parameter:', filterParam);
-    console.log('query parameter:', queryParam);
+    const queryParam = { page: param.page + 1, limit: param.limit, sort_field: sortField, sort_direction: sortDirection, filters: JSON.stringify(filterParam) };
     return queryParam;
 }
 
-const toast = useToast();
-const products = ref();
-const productDialog = ref(false);
-const deleteProductDialog = ref(false);
-const deleteProductsDialog = ref(false);
-const routeObj = ref({});
-const selectedRoute = ref();
-const submitted = ref(false);
+async function fetchRoute() {
+    try {
+        loadingTable.value = true;
+        const res = await routeAPI.listRoute(buildQueryParam());
+        const data = res.data;
+        totalRecords.value = data.totalRecord;
+        routes.value = data.item.map((v) => {
+            v.createdDate = new Date(v.createdDate);
+            delete v.updatedBy;
+            delete v.updatedDate;
+            delete v.routeRedirects;
+            delete v.routeSecurities;
+            delete v.swaggerFilters;
+            return v;
+        });
+    } catch (error) {
+        showToast({ severity: 'error', summary: 'Error Message', detail: 'Error listing route', life: 3000 });
+        routes.value = [];
+        totalRecords.value = 0;
+    } finally {
+        loadingTable.value = false;
+    }
+}
 
-function openNew() {
-    routeObj.value = {};
+function validationForm(event) {
+    const inputId = event.target.id;
+    const error = errorMessage.value;
+    const id = routeObj?.value?.id;
+    const path = routeObj?.value?.path;
+    const url = routeObj?.value?.url;
+    if (inputId === 'id' || inputId === 'all') {
+        if (id === '' || !id) {
+            error.id = 'please enter route ID';
+        } else if (id.length > 10) {
+            error.id = 'length cannot be greater than 15 characters';
+        } else {
+            error.id = null;
+        }
+    }
+    if (inputId === 'path' || inputId === 'all') {
+        if (path === '' || !path) {
+            error.path = 'please enter context path';
+        } else if (path.length > 15) {
+            error.path = 'length cannot be greater than 15 characters';
+        } else {
+            error.path = null;
+        }
+    }
+    if (inputId === 'url' || inputId === 'all') {
+        if (url === '' || !url) {
+            error.url = 'please enter route URL';
+        } else if (UrlUtil.isValidUrl(url)) {
+            error.url = 'please enter correct route URL';
+        } else {
+            error.url = null;
+        }
+    }
+}
+
+function showDialog() {
+    selectedRoute.value = null;
+    errorMessage.value = { id: null, path: null, url: null };
+    restRouteObject();
     submitted.value = false;
     dialogTitle.value = 'Add new route';
     isEdit.value = false;
     displayDialog.value = true;
-    selectedRoute.value = null;
 }
 
 function hideDialog() {
-    productDialog.value = false;
+    restRouteObject();
+    displayDialog.value = false;
     submitted.value = false;
 }
 
-function saveProduct() {
-    submitted.value = true;
-
-    if (routeObj?.value.name?.trim()) {
-        if (routeObj.value.id) {
-            routeObj.value.inventoryStatus = routeObj.value.inventoryStatus.value ? routeObj.value.inventoryStatus.value : routeObj.value.inventoryStatus;
-            products.value[findIndexById(routeObj.value.id)] = routeObj.value;
-            toast.add({ severity: 'success', summary: 'Successful', detail: 'Product Updated', life: 3000 });
-        } else {
-            routeObj.value.id = createId();
-            routeObj.value.code = createId();
-            routeObj.value.image = 'product-placeholder.svg';
-            routeObj.value.inventoryStatus = routeObj.value.inventoryStatus ? routeObj.value.inventoryStatus.value : 'INSTOCK';
-            products.value.push(routeObj.value);
-            toast.add({ severity: 'success', summary: 'Successful', detail: 'Product Created', life: 3000 });
-        }
-
-        productDialog.value = false;
-        routeObj.value = {};
+function editRoute(prod) {
+    if (prod && prod.id) {
+        routeObj.value = { ...prod };
+    } else if (selectedRoute && selectedRoute.value.id) {
+        routeObj.value = { ...selectedRoute.value };
     }
-}
-
-function editProduct(prod) {
-    console.log(prod, selectedRoute);
-    isEdit.value = true;
-    if (prod && prod.id) routeObj.value = { ...prod };
-    else if (selectedRoute) routeObj.value = { ...selectedRoute.value };
+    delete routeObj.value.createdBy;
+    delete routeObj.value.createdDate;
+    dialogTitle.value = 'Edit route ' + routeObj.value.id;
     displayDialog.value = true;
+    isEdit.value = true;
 }
 
-function confirmDeleteProduct(prod) {
-    routeObj.value = prod;
-    deleteProductDialog.value = true;
+function restRouteObject() {
+    routeObj.value = { stripPrefix: true, enableRedirect: false, status: dropDownstatuses.value[0]?.value || 'ACTIVE' };
+    selectedRoute.value = null;
 }
 
-function deleteProduct() {
-    products.value = products.value.filter((val) => val.id !== routeObj.value.id);
-    deleteProductDialog.value = false;
-    routeObj.value = {};
-    toast.add({ severity: 'success', summary: 'Successful', detail: 'Product Deleted', life: 3000 });
-}
-
-function findIndexById(id) {
-    let index = -1;
-    for (let i = 0; i < products.value.length; i++) {
-        if (products.value[i].id === id) {
-            index = i;
-            break;
+function saveRoute() {
+    submitted.value = true;
+    validationForm({ target: { id: 'all' } });
+    const error = errorMessage.value;
+    const isValid = !error.id && !error.path && !error.url;
+    if (isValid) {
+        loadingSubmit.value = true;
+        if (isEdit.value) {
+            routeAPI
+                .updateRoute(routeObj.value)
+                .then((res) => {
+                    showToast({ severity: 'success', summary: 'Update route', detail: res.message, life: 3000 });
+                    fetchRoute();
+                    displayDialog.value = false;
+                    restRouteObject();
+                })
+                .finally(() => {
+                    loadingSubmit.value = false;
+                });
+        } else {
+            routeAPI
+                .addRoute(routeObj.value)
+                .then((res) => {
+                    showToast({ severity: 'success', summary: 'Add route', detail: res.message, life: 3000 });
+                    fetchRoute();
+                    displayDialog.value = false;
+                    restRouteObject();
+                })
+                .finally(() => {
+                    loadingSubmit.value = false;
+                });
         }
     }
-    return index;
 }
 
-function createId() {
-    let id = '';
-    var chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    for (var i = 0; i < 5; i++) {
-        id += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return id;
+function showConfirmDelete(prod) {
+    routeObj.value = prod;
+    displayConfirmDelete.value = true;
+}
+
+function deleteRoute() {
+    const id = routeObj.value.id;
+    routeAPI
+        .deleteRoute(id)
+        .then((res) => {
+            showToast({ severity: 'success', summary: 'Delete route ' + id, detail: res.message, life: 3000 });
+            fetchRoute();
+        })
+        .finally(() => {
+            displayConfirmDelete.value = false;
+            routeObj.value = {};
+        });
+}
+
+function showConfirmDeleteSelected() {
+    displayDeleteSelected.value = true;
+}
+
+function deleteSelectedRoute() {
+    const id = selectedRoute.value.id;
+    routeAPI
+        .deleteRoute(id)
+        .then((res) => {
+            showToast({ severity: 'success', summary: 'Delete route ' + id, detail: res.message, life: 3000 });
+            fetchRoute();
+        })
+        .finally(() => {
+            displayDeleteSelected.value = false;
+            selectedRoute.value = null;
+        });
 }
 
 function exportCSV() {
     dt.value.exportCSV();
-}
-
-function confirmDeleteSelected() {
-    deleteProductsDialog.value = true;
-}
-
-function deleteSelectedProducts() {
-    products.value = products.value.filter((val) => !selectedRoute.value.includes(val));
-    deleteProductsDialog.value = false;
-    selectedRoute.value = null;
-    toast.add({ severity: 'success', summary: 'Successful', detail: 'Products Deleted', life: 3000 });
 }
 </script>
 
@@ -299,10 +363,10 @@ function deleteSelectedProducts() {
         <div class="card">
             <Toolbar class="mb-6">
                 <template #start #body="slotProps">
-                    <Button label="New" icon="pi pi-plus" outlined class="mr-2" @click="openNew" />
-                    <Button label="Edit" icon="pi pi pi-pencil" severity="info" outlined class="mr-2" @click="editProduct" :disabled="!selectedRoute" />
-                    <Button label="Delete" icon="pi pi-trash" severity="danger" outlined class="mr-2" @click="confirmDeleteSelected" :disabled="!selectedRoute" />
-                    <Button label="Clear" icon="pi pi-filter-slash" severity="secondary" outlined @click="onClearFilter" />
+                    <Button label="New" icon="pi pi-plus" class="mr-2" outlined @click="showDialog" />
+                    <Button label="Edit" icon="pi pi pi-pencil" severity="info" outlined class="mr-2" @click="editRoute" :disabled="!selectedRoute" />
+                    <Button label="Delete" icon="pi pi-trash" severity="danger" outlined class="mr-2" @click="showConfirmDeleteSelected" :disabled="!selectedRoute" />
+                    <Button label="Clear" icon="pi pi-filter-slash" severity="secondary" outlined @click="onClearFilter" :disabled="!isFilter" />
                 </template>
 
                 <template #end>
@@ -319,7 +383,7 @@ function deleteSelectedProducts() {
                 :first="page"
                 :rows="limit"
                 :totalRecords="totalRecords"
-                :loading="loading"
+                :loading="loadingTable"
                 :rowsPerPageOptions="[5, 10, 20, 50]"
                 :globalFilterFields="globalFilterFields"
                 @filter="onFilter($event)"
@@ -474,93 +538,115 @@ function deleteSelectedProducts() {
                 </Column>
                 <Column header="Action" :exportable="false" style="min-width: 10rem">
                     <template #body="slotProps">
-                        <Button icon="pi pi-pencil" outlined severity="info" class="mr-2" @click="editProduct(slotProps.data)" />
-                        <Button icon="pi pi-trash" outlined severity="danger" @click="confirmDeleteProduct(slotProps.data)" />
+                        <Button icon="pi pi-pencil" outlined severity="info" class="mr-2" @click="editRoute(slotProps.data)" />
+                        <Button icon="pi pi-trash" outlined severity="danger" @click="showConfirmDelete(slotProps.data)" />
                     </template>
                 </Column>
             </DataTable>
         </div>
 
-        <Dialog v-model:visible="displayDialog" :style="{ width: '450px' }" :header="dialogTitle" :modal="true">
+        <Dialog v-model:visible="displayDialog" :style="{ width: '450px' }" :header="dialogTitle" closeOnEscape :modal="true">
             <div class="flex flex-col gap-6">
-                <!-- <img v-if="product.image" :src="`https://primefaces.org/cdn/primevue/images/product/${product.image}`" :alt="product.image" class="block m-auto pb-4" /> -->
                 <div>
-                    <label for="id" class="block font-bold mb-3">ID</label>
-                    <InputText id="id" :disabled="isEdit" v-model.trim="routeObj.id" required="true" autofocus :invalid="submitted && !routeObj.id" fluid />
-                    <small v-if="submitted && !routeObj.id" class="text-red-500">ID is required.</small>
+                    <label for="id" class="block font-bold mb-3 required">ID</label>
+                    <InputText id="id" v-model.trim="routeObj.id" @blur="validationForm($event)" :disabled="isEdit" placeholder="order" required="true" :invalid="submitted && !routeObj.id" fluid />
+                    <small v-if="errorMessage.id" class="text-red-500">{{ errorMessage.id }}</small>
                 </div>
                 <div>
-                    <label for="description" class="block font-bold mb-3">Description</label>
-                    <Textarea id="description" v-model="routeObj.description" required="true" rows="3" cols="20" fluid />
+                    <label for="path" class="block font-bold mb-3 required">Path</label>
+                    <InputText id="path" v-model.trim="routeObj.path" @blur="validationForm($event)" placeholder="/api/**" required="true" :invalid="submitted && !routeObj.path" fluid />
+                    <small v-if="errorMessage.path" class="text-red-500">{{ errorMessage.path }}</small>
                 </div>
                 <div>
-                    <label for="inventoryStatus" class="block font-bold mb-3">Inventory Status</label>
-                    <Select id="inventoryStatus" v-model="routeObj.inventoryStatus" :options="statuses" optionLabel="label" placeholder="Select a Status" fluid></Select>
+                    <label for="url" class="block font-bold mb-3 required">URL</label>
+                    <InputText id="url" v-model.trim="routeObj.url" @blur="validationForm($event)" placeholder="http://localhost:8080" required="true" :invalid="submitted && (!routeObj.url || UrlUtil.isValidUrl(routeObj.url))" fluid />
+                    <small v-if="errorMessage.url" class="text-red-500">{{ errorMessage.url }}</small>
                 </div>
-
                 <div>
-                    <span class="block font-bold mb-4">Category</span>
-                    <div class="grid grid-cols-12 gap-4">
-                        <div class="flex items-center gap-2 col-span-6">
-                            <RadioButton id="category1" v-model="routeObj.category" name="category" value="Accessories" />
-                            <label for="category1">Accessories</label>
-                        </div>
-                        <div class="flex items-center gap-2 col-span-6">
-                            <RadioButton id="category2" v-model="routeObj.category" name="category" value="Clothing" />
-                            <label for="category2">Clothing</label>
-                        </div>
-                        <div class="flex items-center gap-2 col-span-6">
-                            <RadioButton id="category3" v-model="routeObj.category" name="category" value="Electronics" />
-                            <label for="category3">Electronics</label>
-                        </div>
-                        <div class="flex items-center gap-2 col-span-6">
-                            <RadioButton id="category4" v-model="routeObj.category" name="category" value="Fitness" />
-                            <label for="category4">Fitness</label>
-                        </div>
-                    </div>
+                    <label for="required-header" class="block font-bold mb-3">Required Header</label>
+                    <InputText id="required-header" v-model.trim="routeObj.requiredHeader" placeholder="x-api-token,x-auth" fluid />
                 </div>
-
+                <div>
+                    <label for="exclude-header" class="block font-bold mb-3">Exclude Header</label>
+                    <InputText id="exclude-header" v-model.trim="routeObj.excludeHeader" placeholder="cookie,authorization" fluid />
+                </div>
+                <div>
+                    <label for="whitelist-ip" class="block font-bold mb-3">Whitelist Ip</label>
+                    <InputText id="whitelist-ip" v-model.trim="routeObj.whitelistIp" placeholder="192.168.100.10,100.168.10.1" fluid />
+                </div>
                 <div class="grid grid-cols-12 gap-4">
                     <div class="col-span-6">
-                        <label for="price" class="block font-bold mb-3">Price</label>
-                        <InputNumber id="price" v-model="routeObj.price" mode="currency" currency="USD" locale="en-US" fluid />
+                        <label for="timeout" class="block font-bold mb-3">Connection timeout</label>
+                        <InputText id="timeout" type="number" v-model.trim="routeObj.connectionReadTimeout" placeholder="20000" fluid />
                     </div>
                     <div class="col-span-6">
-                        <label for="quantity" class="block font-bold mb-3">Quantity</label>
-                        <InputNumber id="quantity" v-model="routeObj.quantity" integeronly fluid />
+                        <label for="status" class="block font-bold mb-3">Status</label>
+                        <Select id="status" v-model="routeObj.status" :options="dropDownstatuses" optionLabel="label" optionValue="value" placeholder="Select a Status" fluid></Select>
+                    </div>
+                </div>
+                <div>
+                    <span class="block font-bold mb-4">Strip Prefix</span>
+                    <div class="grid grid-cols-12 gap-4">
+                        <div class="flex items-center gap-2 col-span-6">
+                            <RadioButton id="strip-prefix-yes" v-model="routeObj.stripPrefix" name="stripPrefix" :value="true" />
+                            <label for="strip-prefix-yes">YES</label>
+                        </div>
+                        <div class="flex items-center gap-2 col-span-6">
+                            <RadioButton id="strip-prefix-false" v-model="routeObj.stripPrefix" name="stripPrefix" :value="false" />
+                            <label for="strip-prefix-false">NO</label>
+                        </div>
+                    </div>
+                </div>
+                <div>
+                    <span class="block font-bold mb-4">Enable Redirect</span>
+                    <div class="grid grid-cols-12 gap-4">
+                        <div class="flex items-center gap-2 col-span-6">
+                            <RadioButton id="enable-redirect-yes" v-model="routeObj.enableRedirect" name="enableRedirect" :value="true" />
+                            <label for="enable-redirect-yes">YES</label>
+                        </div>
+                        <div class="flex items-center gap-2 col-span-6">
+                            <RadioButton id="enable-redirect-false" v-model="routeObj.enableRedirect" name="enableRedirect" :value="false" />
+                            <label for="enable-redirect-false">NO</label>
+                        </div>
                     </div>
                 </div>
             </div>
-
             <template #footer>
-                <Button label="Cancel" icon="pi pi-times" text @click="hideDialog" />
-                <Button label="Save" icon="pi pi-check" @click="saveProduct" />
+                <Button label="Cancel" icon="pi pi-times" text :disabled="loadingSubmit" @click="hideDialog" />
+                <Button label="Save" icon="pi pi-check" :loading="loadingSubmit" @click="saveRoute" />
             </template>
         </Dialog>
 
-        <Dialog v-model:visible="deleteProductDialog" :style="{ width: '450px' }" header="Confirm" :modal="true">
+        <Dialog v-model:visible="displayConfirmDelete" :style="{ width: '450px' }" header="Confirm" :modal="true">
             <div class="flex items-center gap-4">
                 <i class="pi pi-exclamation-triangle !text-3xl" />
                 <span v-if="routeObj"
-                    >Are you sure you want to delete <b>{{ routeObj.name }}</b
+                    >Are you sure you want to delete <b>{{ routeObj.id }}</b
                     >?</span
                 >
             </div>
             <template #footer>
-                <Button label="No" icon="pi pi-times" text @click="deleteProductDialog = false" />
-                <Button label="Yes" icon="pi pi-check" @click="deleteProduct" />
+                <Button label="No" icon="pi pi-times" @click="displayConfirmDelete = false" />
+                <Button label="Yes" icon="pi pi-check" severity="danger" @click="deleteRoute" />
             </template>
         </Dialog>
 
-        <Dialog v-model:visible="deleteProductsDialog" :style="{ width: '450px' }" header="Confirm" :modal="true">
+        <Dialog v-model:visible="displayDeleteSelected" :style="{ width: '450px' }" header="Confirm" :modal="true">
             <div class="flex items-center gap-4">
                 <i class="pi pi-exclamation-triangle !text-3xl" />
                 <span v-if="routeObj">Are you sure you want to delete the selected products?</span>
             </div>
             <template #footer>
-                <Button label="No" icon="pi pi-times" text severity="secondary" @click="deleteProductsDialog = false" />
-                <Button label="Yes" icon="pi pi-check" text severity="danger" @click="deleteSelectedProducts" />
+                <Button label="No" icon="pi pi-times" @click="displayDeleteSelected = false" />
+                <Button label="Yes" icon="pi pi-check" severity="danger" @click="deleteSelectedRoute" />
             </template>
         </Dialog>
     </div>
 </template>
+
+<style scoped lang="scss">
+.required::after {
+    content: ' *';
+    color: red;
+}
+</style>
