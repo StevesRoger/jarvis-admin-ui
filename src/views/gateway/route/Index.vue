@@ -5,7 +5,7 @@ import { converter } from '@/utils/ObjectUtil';
 import { camelToSnake, UrlUtil } from '@/utils/StringUtil';
 import { showToast } from '@/utils/ToastService';
 import { FilterMatchMode, FilterOperator } from '@primevue/core/api';
-import { onBeforeMount, onMounted, ref, watch } from 'vue';
+import { nextTick, onBeforeMount, onMounted, ref, watch } from 'vue';
 
 const displayDialog = ref(false);
 const dialogTitle = ref('Add route');
@@ -13,7 +13,6 @@ const isEdit = ref(false);
 const dt = ref(null);
 const routes = ref(null);
 const loadingTable = ref(false);
-const loadingSubmit = ref(false);
 const page = ref(0);
 const limit = ref(10);
 const totalRecords = ref(0);
@@ -26,9 +25,11 @@ const dropDownstatuses = ref([
     { label: 'INACTIVE', value: 'INACTIVE' }
 ]);
 
+const dialogContent = ref(null);
 const errorMessage = ref({ id: null, path: null, url: null });
-const routeObj = ref({});
+const routeModel = ref({});
 const selectedRoute = ref();
+const loadingSubmit = ref(false);
 const submitted = ref(false);
 const displayConfirmDelete = ref(false);
 const displayDeleteSelected = ref(false);
@@ -57,6 +58,8 @@ const filters = ref({
     createdBy: { value: null, matchMode: FilterMatchMode.CONTAINS },
     createdDate: { value: null, matchMode: FilterMatchMode.DATE_IS, dataType: 'date' }
 });
+
+const excludeField = ['updatedBy', 'updatedDate', 'routeRedirects', 'routeSecurities', 'swaggerFilters', 'createdBy', 'createdDate'];
 
 let delaySearch;
 
@@ -191,18 +194,12 @@ function buildQueryParam() {
 async function fetchRoute() {
     try {
         loadingTable.value = true;
+        selectedRoute.value = null;
         const res = await routeAPI.listRoute(buildQueryParam());
         const data = res.data;
         totalRecords.value = data.totalRecord;
-        routes.value = data.item.map((v) => {
-            v.createdDate = new Date(v.createdDate);
-            delete v.updatedBy;
-            delete v.updatedDate;
-            delete v.routeRedirects;
-            delete v.routeSecurities;
-            delete v.swaggerFilters;
-            return v;
-        });
+        routes.value = data.item;
+        routes.value.forEach((v) => (v.createdDate = new Date(v.createdDate)));
     } catch (error) {
         showToast({ severity: 'error', summary: 'Error Message', detail: 'Error listing route', life: 3000 });
         routes.value = [];
@@ -213,11 +210,12 @@ async function fetchRoute() {
 }
 
 function validationForm(event) {
-    const inputId = event.target.id;
+    const inputId = event.id || event.target.id;
     const error = errorMessage.value;
-    const id = routeObj?.value?.id;
-    const path = routeObj?.value?.path;
-    const url = routeObj?.value?.url;
+    const model = routeModel.value;
+    const id = model?.id;
+    const path = model?.path;
+    const url = model?.url;
     if (inputId === 'id' || inputId === 'all') {
         if (id === '' || !id) {
             error.id = 'please enter route ID';
@@ -248,9 +246,8 @@ function validationForm(event) {
 }
 
 function showDialog() {
+    resetModel();
     selectedRoute.value = null;
-    errorMessage.value = { id: null, path: null, url: null };
-    restRouteObject();
     submitted.value = false;
     dialogTitle.value = 'Add new route';
     isEdit.value = false;
@@ -258,71 +255,77 @@ function showDialog() {
 }
 
 function hideDialog() {
-    restRouteObject();
+    resetModel();
     displayDialog.value = false;
     submitted.value = false;
 }
 
-function editRoute(prod) {
-    if (prod && prod.id) {
-        routeObj.value = { ...prod };
-    } else if (selectedRoute && selectedRoute.value.id) {
-        routeObj.value = { ...selectedRoute.value };
+function editRoute(param) {
+    if (param && param.id) {
+        routeModel.value = { ...param };
+    } else if (selectedRoute.value && selectedRoute.value.id) {
+        routeModel.value = { ...selectedRoute.value };
     }
-    delete routeObj.value.createdBy;
-    delete routeObj.value.createdDate;
-    dialogTitle.value = 'Edit route ' + routeObj.value.id;
+    const model = routeModel.value;
+    dialogTitle.value = 'Edit route ' + model?.id;
     displayDialog.value = true;
     isEdit.value = true;
+    for (let field of excludeField) {
+        delete model[field];
+    }
 }
 
-function restRouteObject() {
-    routeObj.value = { stripPrefix: true, enableRedirect: false, status: dropDownstatuses.value[0]?.value || 'ACTIVE' };
+function resetModel() {
+    errorMessage.value = { id: null, path: null, url: null };
+    routeModel.value = { stripPrefix: true, enableRedirect: false, status: dropDownstatuses.value[0]?.value || 'ACTIVE' };
     selectedRoute.value = null;
 }
 
-function saveRoute() {
+const saveRoute = () => {
     submitted.value = true;
-    validationForm({ target: { id: 'all' } });
+    validationForm({ id: 'all' });
     const error = errorMessage.value;
     const isValid = !error.id && !error.path && !error.url;
-    if (isValid) {
-        loadingSubmit.value = true;
-        if (isEdit.value) {
-            routeAPI
-                .updateRoute(routeObj.value)
-                .then((res) => {
-                    showToast({ severity: 'success', summary: 'Update route', detail: res.message, life: 3000 });
-                    fetchRoute();
-                    displayDialog.value = false;
-                    restRouteObject();
-                })
-                .finally(() => {
-                    loadingSubmit.value = false;
-                });
-        } else {
-            routeAPI
-                .addRoute(routeObj.value)
-                .then((res) => {
-                    showToast({ severity: 'success', summary: 'Add route', detail: res.message, life: 3000 });
-                    fetchRoute();
-                    displayDialog.value = false;
-                    restRouteObject();
-                })
-                .finally(() => {
-                    loadingSubmit.value = false;
-                });
-        }
+    if (!isValid) {
+        scrollToFirstError();
+        return;
     }
-}
+    const model = routeModel.value;
+    loadingSubmit.value = true;
+    if (isEdit.value) {
+        routeAPI
+            .updateRoute(model)
+            .then((res) => {
+                showToast({ severity: 'success', summary: 'Update route ' + model?.id, detail: res.message, life: 3000 });
+                fetchRoute();
+                displayDialog.value = false;
+                resetModel();
+            })
+            .finally(() => {
+                loadingSubmit.value = false;
+            });
+    } else {
+        routeAPI
+            .addRoute(model)
+            .then((res) => {
+                showToast({ severity: 'success', summary: 'Add route', detail: res.message, life: 3000 });
+                fetchRoute();
+                displayDialog.value = false;
+                resetModel();
+            })
+            .finally(() => {
+                loadingSubmit.value = false;
+            });
+    }
+};
 
-function showConfirmDelete(prod) {
-    routeObj.value = prod;
+const showConfirmDelete = (prod) => {
+    routeModel.value = prod;
     displayConfirmDelete.value = true;
-}
+};
 
-function deleteRoute() {
-    const id = routeObj.value.id;
+const deleteRoute = () => {
+    const id = routeModel.value.id;
     routeAPI
         .deleteRoute(id)
         .then((res) => {
@@ -331,15 +334,15 @@ function deleteRoute() {
         })
         .finally(() => {
             displayConfirmDelete.value = false;
-            routeObj.value = {};
+            routeModel.value = {};
         });
-}
+};
 
-function showConfirmDeleteSelected() {
+const showConfirmDeleteSelected = () => {
     displayDeleteSelected.value = true;
-}
+};
 
-function deleteSelectedRoute() {
+const deleteSelectedRoute = () => {
     const id = selectedRoute.value.id;
     routeAPI
         .deleteRoute(id)
@@ -351,26 +354,38 @@ function deleteSelectedRoute() {
             displayDeleteSelected.value = false;
             selectedRoute.value = null;
         });
-}
+};
 
-function exportCSV() {
+const scrollToFirstError = () => {
+    nextTick(() => {
+        const dialogEl = dialogContent.value;
+        if (!dialogEl) return;
+        const firstErrorEl = document.querySelector('.p-invalid');
+        if (firstErrorEl) {
+            firstErrorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            firstErrorEl.focus();
+        }
+    });
+};
+
+const exportCSV = () => {
     dt.value.exportCSV();
-}
+};
 </script>
 
 <template>
     <div>
         <div class="card">
             <Toolbar class="mb-6">
-                <template #start #body="slotProps">
-                    <Button label="New" icon="pi pi-plus" class="mr-2" outlined @click="showDialog" />
-                    <Button label="Edit" icon="pi pi pi-pencil" severity="info" outlined class="mr-2" @click="editRoute" :disabled="!selectedRoute" />
-                    <Button label="Delete" icon="pi pi-trash" severity="danger" outlined class="mr-2" @click="showConfirmDeleteSelected" :disabled="!selectedRoute" />
+                <template #start>
+                    <Button label="New" icon="pi pi-plus" class="mr-2" outlined :disabled="loadingTable" @click="showDialog" />
+                    <Button label="Edit" icon="pi pi pi-pencil" severity="info" outlined class="mr-2" @click="editRoute" :disabled="loadingTable || !selectedRoute" />
+                    <Button label="Delete" icon="pi pi-trash" severity="danger" outlined class="mr-2" @click="showConfirmDeleteSelected" :disabled="loadingTable || !selectedRoute" />
                     <Button label="Clear" icon="pi pi-filter-slash" severity="secondary" outlined @click="onClearFilter" :disabled="!isFilter" />
                 </template>
 
                 <template #end>
-                    <Button label="Export" icon="pi pi-upload" severity="secondary" @click="exportCSV($event)" />
+                    <Button label="Export" icon="pi pi-upload" severity="secondary" :disabled="loadingTable" @click="exportCSV($event)" />
                 </template>
             </Toolbar>
 
@@ -545,55 +560,55 @@ function exportCSV() {
             </DataTable>
         </div>
 
-        <Dialog v-model:visible="displayDialog" :style="{ width: '450px' }" :header="dialogTitle" closeOnEscape :modal="true">
-            <div class="flex flex-col gap-6">
+        <Dialog v-model:visible="displayDialog" :style="{ width: '450px' }" :header="dialogTitle" @update:visible="resetModel" :closable="false" closeOnEscape :modal="true">
+            <div ref="dialogContent" class="flex flex-col gap-6 dialog-content">
                 <div>
                     <label for="id" class="block font-bold mb-3 required">ID</label>
-                    <InputText id="id" v-model.trim="routeObj.id" @blur="validationForm($event)" :disabled="isEdit" placeholder="order" required="true" :invalid="submitted && !routeObj.id" fluid />
+                    <InputText id="id" v-model.trim="routeModel.id" @blur="validationForm($event)" :disabled="isEdit" placeholder="order" required="true" :invalid="submitted && !routeModel.id" fluid />
                     <small v-if="errorMessage.id" class="text-red-500">{{ errorMessage.id }}</small>
                 </div>
                 <div>
                     <label for="path" class="block font-bold mb-3 required">Path</label>
-                    <InputText id="path" v-model.trim="routeObj.path" @blur="validationForm($event)" placeholder="/api/**" required="true" :invalid="submitted && !routeObj.path" fluid />
+                    <InputText id="path" v-model.trim="routeModel.path" @blur="validationForm($event)" placeholder="/api/**" required="true" :invalid="submitted && !routeModel.path" fluid />
                     <small v-if="errorMessage.path" class="text-red-500">{{ errorMessage.path }}</small>
                 </div>
                 <div>
                     <label for="url" class="block font-bold mb-3 required">URL</label>
-                    <InputText id="url" v-model.trim="routeObj.url" @blur="validationForm($event)" placeholder="http://localhost:8080" required="true" :invalid="submitted && (!routeObj.url || UrlUtil.isValidUrl(routeObj.url))" fluid />
+                    <InputText id="url" v-model.trim="routeModel.url" @blur="validationForm($event)" placeholder="http://localhost:8080" required="true" :invalid="submitted && (!routeModel.url || UrlUtil.isValidUrl(routeModel.url))" fluid />
                     <small v-if="errorMessage.url" class="text-red-500">{{ errorMessage.url }}</small>
                 </div>
                 <div>
                     <label for="required-header" class="block font-bold mb-3">Required Header</label>
-                    <InputText id="required-header" v-model.trim="routeObj.requiredHeader" placeholder="x-api-token,x-auth" fluid />
+                    <InputText id="required-header" v-model.trim="routeModel.requiredHeader" placeholder="x-api-token,x-auth" fluid />
                 </div>
                 <div>
                     <label for="exclude-header" class="block font-bold mb-3">Exclude Header</label>
-                    <InputText id="exclude-header" v-model.trim="routeObj.excludeHeader" placeholder="cookie,authorization" fluid />
+                    <InputText id="exclude-header" v-model.trim="routeModel.excludeHeader" placeholder="cookie,authorization" fluid />
                 </div>
                 <div>
                     <label for="whitelist-ip" class="block font-bold mb-3">Whitelist Ip</label>
-                    <InputText id="whitelist-ip" v-model.trim="routeObj.whitelistIp" placeholder="192.168.100.10,100.168.10.1" fluid />
+                    <InputText id="whitelist-ip" v-model.trim="routeModel.whitelistIp" placeholder="192.168.100.10,100.168.10.1" fluid />
                 </div>
                 <div class="grid grid-cols-12 gap-4">
                     <div class="col-span-6">
                         <label for="timeout" class="block font-bold mb-3">Connection timeout</label>
-                        <InputText id="timeout" type="number" v-model.trim="routeObj.connectionReadTimeout" placeholder="20000" fluid />
+                        <InputText id="timeout" type="number" v-model.trim="routeModel.connectionReadTimeout" placeholder="20000" fluid />
                     </div>
                     <div class="col-span-6">
                         <label for="status" class="block font-bold mb-3">Status</label>
-                        <Select id="status" v-model="routeObj.status" :options="dropDownstatuses" optionLabel="label" optionValue="value" placeholder="Select a Status" fluid></Select>
+                        <Select id="status" v-model="routeModel.status" :options="dropDownstatuses" optionLabel="label" optionValue="value" placeholder="Select a Status" fluid></Select>
                     </div>
                 </div>
                 <div>
                     <span class="block font-bold mb-4">Strip Prefix</span>
                     <div class="grid grid-cols-12 gap-4">
                         <div class="flex items-center gap-2 col-span-6">
-                            <RadioButton id="strip-prefix-yes" v-model="routeObj.stripPrefix" name="stripPrefix" :value="true" />
-                            <label for="strip-prefix-yes">YES</label>
+                            <RadioButton id="strip-prefix-yes" v-model="routeModel.stripPrefix" name="stripPrefix" :value="true" />
+                            <label for="strip-prefix-yes" style="color: #15803d">YES</label>
                         </div>
                         <div class="flex items-center gap-2 col-span-6">
-                            <RadioButton id="strip-prefix-false" v-model="routeObj.stripPrefix" name="stripPrefix" :value="false" />
-                            <label for="strip-prefix-false">NO</label>
+                            <RadioButton id="strip-prefix-false" v-model="routeModel.stripPrefix" name="stripPrefix" :value="false" />
+                            <label for="strip-prefix-false" style="color: #b91c1c">NO</label>
                         </div>
                     </div>
                 </div>
@@ -601,14 +616,17 @@ function exportCSV() {
                     <span class="block font-bold mb-4">Enable Redirect</span>
                     <div class="grid grid-cols-12 gap-4">
                         <div class="flex items-center gap-2 col-span-6">
-                            <RadioButton id="enable-redirect-yes" v-model="routeObj.enableRedirect" name="enableRedirect" :value="true" />
-                            <label for="enable-redirect-yes">YES</label>
+                            <RadioButton id="enable-redirect-yes" v-model="routeModel.enableRedirect" name="enableRedirect" :value="true" />
+                            <label for="enable-redirect-yes" style="color: #15803d">YES</label>
                         </div>
                         <div class="flex items-center gap-2 col-span-6">
-                            <RadioButton id="enable-redirect-false" v-model="routeObj.enableRedirect" name="enableRedirect" :value="false" />
-                            <label for="enable-redirect-false">NO</label>
+                            <RadioButton id="enable-redirect-false" v-model="routeModel.enableRedirect" name="enableRedirect" :value="false" />
+                            <label for="enable-redirect-false" style="color: #b91c1c">NO</label>
                         </div>
                     </div>
+                </div>
+                <div v-if="loadingSubmit" class="loading-overlay">
+                    <ProgressSpinner class="small-spinner" />
                 </div>
             </div>
             <template #footer>
@@ -620,8 +638,8 @@ function exportCSV() {
         <Dialog v-model:visible="displayConfirmDelete" :style="{ width: '450px' }" header="Confirm" :modal="true">
             <div class="flex items-center gap-4">
                 <i class="pi pi-exclamation-triangle !text-3xl" />
-                <span v-if="routeObj"
-                    >Are you sure you want to delete <b>{{ routeObj.id }}</b
+                <span v-if="routeModel"
+                    >Are you sure you want to delete <b>{{ routeModel.id }}</b
                     >?</span
                 >
             </div>
@@ -634,7 +652,7 @@ function exportCSV() {
         <Dialog v-model:visible="displayDeleteSelected" :style="{ width: '450px' }" header="Confirm" :modal="true">
             <div class="flex items-center gap-4">
                 <i class="pi pi-exclamation-triangle !text-3xl" />
-                <span v-if="routeObj">Are you sure you want to delete the selected products?</span>
+                <span v-if="routeModel">Are you sure you want to delete the selected route?</span>
             </div>
             <template #footer>
                 <Button label="No" icon="pi pi-times" @click="displayDeleteSelected = false" />
@@ -648,5 +666,31 @@ function exportCSV() {
 .required::after {
     content: ' *';
     color: red;
+}
+
+.dialog-content {
+    position: relative;
+    min-height: 150px;
+}
+
+.loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+    pointer-events: all;
+}
+
+.small-spinner {
+    width: 40px !important;
+    height: 40px !important;
+    margin: 0;
+    align-self: center;
 }
 </style>
