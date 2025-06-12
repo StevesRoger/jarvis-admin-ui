@@ -1,6 +1,6 @@
 <script setup>
 import { onMounted } from 'vue';
-import { initToast } from './utils/ToastService';
+import { initToast } from './utils/toastService';
 
 onMounted(() => {
     initToast(); // Initialize toast inside setup

@@ -1,65 +1,49 @@
 <script setup>
-import { routeAPI } from '@/service/RouteService';
-import { formatDate } from '@/utils/DateUtil';
-import { converter } from '@/utils/ObjectUtil';
-import { camelToSnake, UrlUtil } from '@/utils/StringUtil';
-import { showToast } from '@/utils/ToastService';
-import { FilterMatchMode, FilterOperator } from '@primevue/core/api';
-import { nextTick, onBeforeMount, onMounted, ref, watch } from 'vue';
-
-const displayDialog = ref(false);
-const dialogTitle = ref('Add route');
-const isEdit = ref(false);
-const dt = ref(null);
-const routes = ref(null);
-const loadingTable = ref(false);
-const page = ref(0);
-const limit = ref(10);
-const totalRecords = ref(0);
-const mapFilterType = ref(new Map());
-const tableParam = ref({});
-
-const statuses = ref(['ACTIVE', 'INACTIVE']);
-const dropDownstatuses = ref([
-    { label: 'ACTIVE', value: 'ACTIVE' },
-    { label: 'INACTIVE', value: 'INACTIVE' }
-]);
-
-const dialogContent = ref(null);
-const errorMessage = ref({ id: null, path: null, url: null });
-const routeModel = ref({});
-const selectedRoute = ref();
-const loadingSubmit = ref(false);
-const submitted = ref(false);
-const displayConfirmDelete = ref(false);
-const displayDeleteSelected = ref(false);
-
-const isFilter = ref(false);
-const globalFilterFields = ref(['name', 'path', 'url', 'connectionReadTimeout', 'createdBy', 'excludeHeader', 'requiredHeader', 'whitelistIp', 'status']);
-const filterNameMatchMode = ref([
-    { label: 'Contains', value: FilterMatchMode.CONTAINS },
-    { label: 'Starts With', value: FilterMatchMode.STARTS_WITH }
-]);
-const filters = ref({
-    global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    name: {
-        operator: FilterOperator.AND,
-        constraints: [{ value: null, matchMode: FilterMatchMode.CONTAINS }]
-    },
-    path: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    url: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    connectionReadTimeout: { value: null, matchMode: FilterMatchMode.EQUALS, dataType: 'number' },
-    excludeHeader: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    requiredHeader: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    whitelistIp: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    stripPrefix: { value: null, matchMode: FilterMatchMode.EQUALS, dataType: 'boolean' },
-    enableRedirect: { value: null, matchMode: FilterMatchMode.EQUALS, dataType: 'boolean' },
-    status: { value: null, matchMode: FilterMatchMode.EQUALS },
-    createdBy: { value: null, matchMode: FilterMatchMode.CONTAINS },
-    createdDate: { value: null, matchMode: FilterMatchMode.DATE_IS, dataType: 'date' }
-});
-
-const excludeField = ['updatedBy', 'updatedDate', 'routeRedirects', 'routeSecurities', 'swaggerFilters', 'createdBy', 'createdDate'];
+import { dropDownStatuses, getStatusSeverity, statuses } from '@/utils/componentUtil';
+import { onBeforeMount, onMounted, watch } from 'vue';
+import {
+    autoComplete,
+    deleteRoute,
+    deleteSelectedRoute,
+    dialogContent,
+    dialogTitle,
+    displayConfirmDelete,
+    displayDeleteSelected,
+    displayDialog,
+    dt,
+    editRoute,
+    errorMessage,
+    exportCSV,
+    fetchRoute,
+    filterNameMatchMode,
+    filters,
+    globalFilterFields,
+    hideDialog,
+    initTableParam,
+    isEdit,
+    isFilter,
+    limit,
+    loadingSubmit,
+    loadingTable,
+    mapFilterType,
+    onBlurAutoCompelete,
+    onClearFilter,
+    onFilter,
+    onPage,
+    onRowDblClick,
+    onSort,
+    page,
+    resetModel,
+    routeModel,
+    routes,
+    saveRoute,
+    selectedRoute,
+    showConfirmDelete,
+    showConfirmDeleteSelected,
+    showDialog,
+    totalRecords,
+    validationForm
+} from './useRoute';
 
 let delaySearch;
 
@@ -68,7 +52,7 @@ watch(
     (newValue) => {
         clearTimeout(delaySearch);
         delaySearch = setTimeout(() => {
-            manipulateTableParam(dt.value);
+            initTableParam(dt.value);
             if (newValue != null) {
                 fetchRoute();
                 isFilter.value = true;
@@ -84,293 +68,9 @@ onBeforeMount(() => {
         const dataType = obj.dataType || 'string';
         mapFilterType.value.set(key, dataType);
     });
-    manipulateTableParam();
+    initTableParam();
     fetchRoute();
 });
-
-function onPage(event) {
-    manipulateTableParam(event);
-    fetchRoute();
-}
-
-function onSort(event) {
-    manipulateTableParam(event);
-    fetchRoute();
-}
-
-function onFilter(event) {
-    manipulateTableParam(event);
-    fetchRoute();
-    isFilter.value = true;
-}
-
-function onClearFilter() {
-    let shouldRefresh = false;
-    isFilter.value = false;
-    selectedRoute.value = null;
-    Object.keys(filters.value).forEach((key) => {
-        const filter = filters.value[key];
-        if (filter.constraints) {
-            filter.constraints.forEach((v) => {
-                if (!shouldRefresh) shouldRefresh = v.value != null;
-                v.value = null;
-            });
-        } else {
-            if (!shouldRefresh) shouldRefresh = filter.value != null;
-            filter.value = null;
-        }
-    });
-    if (shouldRefresh) fetchRoute();
-}
-
-function getStatusSeverity(status) {
-    switch (status) {
-        case 'INACTIVE':
-            return 'danger';
-        case 'ACTIVE':
-            return 'success';
-        default:
-            return 'secondary';
-    }
-}
-
-function manipulateTableParam(source) {
-    if (source) {
-        const param = tableParam.value;
-        param.page = source.page || page.value;
-        param.limit = source.rows || limit.value;
-        param.filters = source.filters;
-        param.sortField = source.sortField;
-        param.sortOrder = source.sortOrder;
-        param.multiSortMeta = source.multiSortMeta;
-    } else {
-        const table = dt?.value;
-        tableParam.value = {
-            page: table?.page || page.value,
-            limit: table?.rows || limit.value,
-            sortField: table?.sortField || null,
-            sortOrder: table?.sortOrder || null,
-            multiSortMeta: table?.multiSortMeta || null,
-            filters: table?.filters || filters.value,
-            globalFilterFields: table?.globalFilterFields || globalFilterFields.value
-        };
-    }
-}
-
-function buildQueryParam() {
-    const filterParam = [];
-    const param = tableParam.value;
-    Object.entries(param.filters).forEach(([key, obj]) => {
-        const conditions = obj.constraints ? obj.constraints.filter((v) => v.value != null && v.value !== '' && v.matchMode) : null;
-        const value = obj.value;
-        const operator = obj.operator || 'AND';
-        const matchMode = obj.matchMode;
-        const dataType = mapFilterType.value.get(key);
-        if (value != null && value !== '' && matchMode) {
-            if (key === 'global') {
-                for (let field of globalFilterFields.value) {
-                    let fieldType = mapFilterType.value.get(field);
-                    let fieldMatchMode = fieldType === 'number' || fieldType === 'boolean' ? FilterMatchMode.EQUALS : matchMode;
-                    filterParam.push({ field: field, value: converter(fieldType, value), operator: 'OR', match_mode: camelToSnake(fieldMatchMode).toUpperCase() });
-                }
-            } else {
-                filterParam.push({ field: key, value: converter(dataType, value), operator: operator.toUpperCase(), match_mode: camelToSnake(matchMode).toUpperCase() });
-            }
-        } else if (conditions) {
-            for (let con of conditions) {
-                filterParam.push({ field: key, value: converter(dataType, con.value), operator: operator.toUpperCase(), match_mode: camelToSnake(con.matchMode).toUpperCase() });
-            }
-        }
-    });
-    const sortField = param.sortField === 'id' ? 'name' : param.sortField || null;
-    const sortOrder = param.sortOrder;
-    let sortDirection = null;
-    if (sortOrder === 1) sortDirection = 'ASC';
-    else if (sortOrder === -1) sortDirection = 'DESC';
-    const queryParam = { page: param.page + 1, limit: param.limit, sort_field: sortField, sort_direction: sortDirection, filters: JSON.stringify(filterParam) };
-    return queryParam;
-}
-
-async function fetchRoute() {
-    try {
-        loadingTable.value = true;
-        selectedRoute.value = null;
-        const res = await routeAPI.listRoute(buildQueryParam());
-        const data = res.data;
-        totalRecords.value = data.totalRecord;
-        routes.value = data.item;
-        routes.value.forEach((v) => (v.createdDate = new Date(v.createdDate)));
-    } catch (error) {
-        showToast({ severity: 'error', summary: 'Error Message', detail: 'Error listing route', life: 3000 });
-        routes.value = [];
-        totalRecords.value = 0;
-    } finally {
-        loadingTable.value = false;
-    }
-}
-
-function validationForm(event) {
-    const inputId = event.id || event.target.id;
-    const error = errorMessage.value;
-    const model = routeModel.value;
-    const id = model?.id;
-    const path = model?.path;
-    const url = model?.url;
-    if (inputId === 'id' || inputId === 'all') {
-        if (id === '' || !id) {
-            error.id = 'please enter route ID';
-        } else if (id.length > 10) {
-            error.id = 'length cannot be greater than 15 characters';
-        } else {
-            error.id = null;
-        }
-    }
-    if (inputId === 'path' || inputId === 'all') {
-        if (path === '' || !path) {
-            error.path = 'please enter context path';
-        } else if (path.length > 15) {
-            error.path = 'length cannot be greater than 15 characters';
-        } else {
-            error.path = null;
-        }
-    }
-    if (inputId === 'url' || inputId === 'all') {
-        if (url === '' || !url) {
-            error.url = 'please enter route URL';
-        } else if (UrlUtil.isValidUrl(url)) {
-            error.url = 'please enter correct route URL';
-        } else {
-            error.url = null;
-        }
-    }
-}
-
-function showDialog() {
-    resetModel();
-    selectedRoute.value = null;
-    submitted.value = false;
-    dialogTitle.value = 'Add new route';
-    isEdit.value = false;
-    displayDialog.value = true;
-}
-
-function hideDialog() {
-    resetModel();
-    displayDialog.value = false;
-    submitted.value = false;
-}
-
-function editRoute(param) {
-    if (param && param.id) {
-        routeModel.value = { ...param };
-    } else if (selectedRoute.value && selectedRoute.value.id) {
-        routeModel.value = { ...selectedRoute.value };
-    }
-    const model = routeModel.value;
-    dialogTitle.value = 'Edit route ' + model?.id;
-    displayDialog.value = true;
-    isEdit.value = true;
-    for (let field of excludeField) {
-        delete model[field];
-    }
-}
-
-function resetModel() {
-    errorMessage.value = { id: null, path: null, url: null };
-    routeModel.value = { stripPrefix: true, enableRedirect: false, status: dropDownstatuses.value[0]?.value || 'ACTIVE' };
-    selectedRoute.value = null;
-}
-
-const saveRoute = () => {
-    submitted.value = true;
-    validationForm({ id: 'all' });
-    const error = errorMessage.value;
-    const isValid = !error.id && !error.path && !error.url;
-    if (!isValid) {
-        scrollToFirstError();
-        return;
-    }
-    const model = routeModel.value;
-    loadingSubmit.value = true;
-    if (isEdit.value) {
-        routeAPI
-            .updateRoute(model)
-            .then((res) => {
-                showToast({ severity: 'success', summary: 'Update route ' + model?.id, detail: res.message, life: 3000 });
-                fetchRoute();
-                displayDialog.value = false;
-                resetModel();
-            })
-            .finally(() => {
-                loadingSubmit.value = false;
-            });
-    } else {
-        routeAPI
-            .addRoute(model)
-            .then((res) => {
-                showToast({ severity: 'success', summary: 'Add route', detail: res.message, life: 3000 });
-                fetchRoute();
-                displayDialog.value = false;
-                resetModel();
-            })
-            .finally(() => {
-                loadingSubmit.value = false;
-            });
-    }
-};
-
-const showConfirmDelete = (prod) => {
-    routeModel.value = prod;
-    displayConfirmDelete.value = true;
-};
-
-const deleteRoute = () => {
-    const id = routeModel.value.id;
-    routeAPI
-        .deleteRoute(id)
-        .then((res) => {
-            showToast({ severity: 'success', summary: 'Delete route ' + id, detail: res.message, life: 3000 });
-            fetchRoute();
-        })
-        .finally(() => {
-            displayConfirmDelete.value = false;
-            routeModel.value = {};
-        });
-};
-
-const showConfirmDeleteSelected = () => {
-    displayDeleteSelected.value = true;
-};
-
-const deleteSelectedRoute = () => {
-    const id = selectedRoute.value.id;
-    routeAPI
-        .deleteRoute(id)
-        .then((res) => {
-            showToast({ severity: 'success', summary: 'Delete route ' + id, detail: res.message, life: 3000 });
-            fetchRoute();
-        })
-        .finally(() => {
-            displayDeleteSelected.value = false;
-            selectedRoute.value = null;
-        });
-};
-
-const scrollToFirstError = () => {
-    nextTick(() => {
-        const dialogEl = dialogContent.value;
-        if (!dialogEl) return;
-        const firstErrorEl = document.querySelector('.p-invalid');
-        if (firstErrorEl) {
-            firstErrorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            firstErrorEl.focus();
-        }
-    });
-};
-
-const exportCSV = () => {
-    dt.value.exportCSV();
-};
 </script>
 
 <template>
@@ -381,11 +81,11 @@ const exportCSV = () => {
                     <Button label="New" icon="pi pi-plus" class="mr-2" outlined :disabled="loadingTable" @click="showDialog" />
                     <Button label="Edit" icon="pi pi pi-pencil" severity="info" outlined class="mr-2" @click="editRoute" :disabled="loadingTable || !selectedRoute" />
                     <Button label="Delete" icon="pi pi-trash" severity="danger" outlined class="mr-2" @click="showConfirmDeleteSelected" :disabled="loadingTable || !selectedRoute" />
-                    <Button label="Clear" icon="pi pi-filter-slash" severity="secondary" outlined @click="onClearFilter" :disabled="!isFilter" />
+                    <Button label="Clear" icon="pi pi-filter-slash" outlined @click="onClearFilter" :disabled="!isFilter" />
                 </template>
 
                 <template #end>
-                    <Button label="Export" icon="pi pi-upload" severity="secondary" :disabled="loadingTable" @click="exportCSV($event)" />
+                    <Button label="Export" icon="pi pi-upload" severity="secondary" :disabled="loadingTable" @click="exportCSV" />
                 </template>
             </Toolbar>
 
@@ -401,6 +101,7 @@ const exportCSV = () => {
                 :loading="loadingTable"
                 :rowsPerPageOptions="[5, 10, 20, 50]"
                 :globalFilterFields="globalFilterFields"
+                @row-dblclick="onRowDblClick($event)"
                 @filter="onFilter($event)"
                 @page="onPage($event)"
                 @sort="onSort($event)"
@@ -415,7 +116,7 @@ const exportCSV = () => {
             >
                 <template #header>
                     <div class="flex flex-wrap gap-2 items-center justify-between">
-                        <h4 class="m-0" style="display: inline">Manage Routes</h4>
+                        <h4 class="m-0" style="display: inline">Manage Route</h4>
                         <IconField>
                             <InputIcon>
                                 <i class="pi pi-search" />
@@ -439,7 +140,7 @@ const exportCSV = () => {
                         <InputText v-model="filterModel.value" type="text" placeholder="Search by id" />
                     </template>
                 </Column>
-                <Column field="path" filterField="path" header="Path" sortable :showFilterMatchModes="false" style="min-width: 12rem">
+                <Column field="path" filterField="path" header="Context Path" sortable :showFilterMatchModes="false" style="min-width: 14rem">
                     <template #body="{ data }">
                         {{ data.path }}
                     </template>
@@ -460,12 +161,12 @@ const exportCSV = () => {
                         {{ data.connectionReadTimeout }}
                     </template>
                     <template #filter="{ filterModel }">
-                        <InputText v-model="filterModel.value" type="text" placeholder="Search by read timeout" />
+                        <InputText v-model="filterModel.value" type="number" placeholder="Search by read timeout" />
                     </template>
                 </Column>
                 <Column field="excludeHeader" filterField="excludeHeader" header="Exclude Header" :showFilterMatchModes="false" style="min-width: 12rem">
                     <template #body="{ data }">
-                        {{ data.excludeHeader }}
+                        {{ data.excludeHeader.join(', ') }}
                     </template>
                     <template #filter="{ filterModel }">
                         <InputText v-model="filterModel.value" type="text" placeholder="Search by exclude header" />
@@ -473,7 +174,7 @@ const exportCSV = () => {
                 </Column>
                 <Column field="requiredHeader" filterField="requiredHeader" header="Required Header" :showFilterMatchModes="false" style="min-width: 15rem">
                     <template #body="{ data }">
-                        {{ data.requiredHeader }}
+                        {{ data.requiredHeader.join(', ') }}
                     </template>
                     <template #filter="{ filterModel }">
                         <InputText v-model="filterModel.value" type="text" placeholder="Search by required header" />
@@ -481,7 +182,7 @@ const exportCSV = () => {
                 </Column>
                 <Column field="whitelistIp" filterField="whitelistIp" header="WhitelistIp" :showFilterMatchModes="false" style="min-width: 12rem">
                     <template #body="{ data }">
-                        {{ data.whitelistIp }}
+                        {{ data.whitelistIp.join(', ') }}
                     </template>
                     <template #filter="{ filterModel }">
                         <InputText v-model="filterModel.value" type="text" placeholder="Search by white list Ip" />
@@ -535,14 +236,6 @@ const exportCSV = () => {
                         </Select>
                     </template>
                 </Column>
-                <Column field="createdDate" filterField="createdDate" header="Created Date" :showFilterMatchModes="false" dataType="date" style="min-width: 12rem">
-                    <template #body="{ data }">
-                        {{ formatDate(data.createdDate) }}
-                    </template>
-                    <template #filter="{ filterModel }">
-                        <DatePicker v-model="filterModel.value" dateFormat="dd/mm/yy" placeholder="dd/mm/yyyy" />
-                    </template>
-                </Column>
                 <Column field="createdBy" filterField="createdBy" header="Created By" :showFilterMatchModes="false" style="min-width: 12rem">
                     <template #body="{ data }">
                         {{ data.createdBy }}
@@ -551,6 +244,16 @@ const exportCSV = () => {
                         <InputText v-model="filterModel.value" type="text" placeholder="Search by created by" />
                     </template>
                 </Column>
+                <Column field="createdDate" filterField="createdDate" header="Created Date" :showFilterMatchModes="false" dataType="date" style="min-width: 14rem">
+                    <template #body="{ data }">
+                        {{ data.createdDate }}
+                    </template>
+                    <template #filter="{ filterModel }">
+                        <DatePicker v-model="filterModel.value" dateFormat="dd/mm/yy" placeholder="dd/mm/yyyy" />
+                    </template>
+                </Column>
+                <Column field="updatedBy" header="Updated By" :showFilterMatchModes="false" style="min-width: 12rem" />
+                <Column field="updatedDate" header="Update Date" :showFilterMatchModes="false" dataType="date" style="min-width: 14rem" />
                 <Column header="Action" :exportable="false" style="min-width: 10rem">
                     <template #body="slotProps">
                         <Button icon="pi pi-pencil" outlined severity="info" class="mr-2" @click="editRoute(slotProps.data)" />
@@ -560,34 +263,35 @@ const exportCSV = () => {
             </DataTable>
         </div>
 
-        <Dialog v-model:visible="displayDialog" :style="{ width: '450px' }" :header="dialogTitle" @update:visible="resetModel" :closable="false" closeOnEscape :modal="true">
+        <Dialog v-model:visible="displayDialog" :style="{ width: '450px' }" :header="dialogTitle" @update:visible="resetModel" :closable="false" :draggable="false" :modal="true">
             <div ref="dialogContent" class="flex flex-col gap-6 dialog-content">
                 <div>
                     <label for="id" class="block font-bold mb-3 required">ID</label>
-                    <InputText id="id" v-model.trim="routeModel.id" @blur="validationForm($event)" :disabled="isEdit" placeholder="order" required="true" :invalid="submitted && !routeModel.id" fluid />
+                    <InputText id="id" v-model.trim="routeModel.id" @blur="validationForm($event)" :disabled="isEdit" placeholder="order" required="true" :invalid="errorMessage.id != null" fluid />
                     <small v-if="errorMessage.id" class="text-red-500">{{ errorMessage.id }}</small>
                 </div>
                 <div>
                     <label for="path" class="block font-bold mb-3 required">Path</label>
-                    <InputText id="path" v-model.trim="routeModel.path" @blur="validationForm($event)" placeholder="/api/**" required="true" :invalid="submitted && !routeModel.path" fluid />
+                    <InputText id="path" v-model.trim="routeModel.path" @blur="validationForm($event)" placeholder="/api/**" required="true" :invalid="errorMessage.path != null" fluid />
                     <small v-if="errorMessage.path" class="text-red-500">{{ errorMessage.path }}</small>
                 </div>
                 <div>
                     <label for="url" class="block font-bold mb-3 required">URL</label>
-                    <InputText id="url" v-model.trim="routeModel.url" @blur="validationForm($event)" placeholder="http://localhost:8080" required="true" :invalid="submitted && (!routeModel.url || UrlUtil.isValidUrl(routeModel.url))" fluid />
+                    <InputText id="url" v-model.trim="routeModel.url" @blur="validationForm($event)" placeholder="http://localhost:8080" required="true" :invalid="errorMessage.url != null" fluid />
                     <small v-if="errorMessage.url" class="text-red-500">{{ errorMessage.url }}</small>
                 </div>
                 <div>
-                    <label for="required-header" class="block font-bold mb-3">Required Header</label>
-                    <InputText id="required-header" v-model.trim="routeModel.requiredHeader" placeholder="x-api-token,x-auth" fluid />
+                    <label for="requiredHeader" class="block font-bold mb-3">Required Header</label>
+                    <AutoComplete inputId="requiredHeader" v-model="autoComplete.requiredHeader" :multiple="true" :typeahead="false" @blur="onBlurAutoCompelete" placeholder="Type and press enter" fluid />
+                    <!-- <InputChips id="excludeHeader" v-model="routeModel.excludeHeader" separator="," fluid /> -->
                 </div>
                 <div>
-                    <label for="exclude-header" class="block font-bold mb-3">Exclude Header</label>
-                    <InputText id="exclude-header" v-model.trim="routeModel.excludeHeader" placeholder="cookie,authorization" fluid />
+                    <label for="excludeHeader" class="block font-bold mb-3">Exclude Header</label>
+                    <AutoComplete inputId="excludeHeader" v-model="autoComplete.excludeHeader" :multiple="true" :typeahead="false" @blur="onBlurAutoCompelete" placeholder="Type and press enter" fluid />
                 </div>
                 <div>
-                    <label for="whitelist-ip" class="block font-bold mb-3">Whitelist Ip</label>
-                    <InputText id="whitelist-ip" v-model.trim="routeModel.whitelistIp" placeholder="192.168.100.10,100.168.10.1" fluid />
+                    <label for="whitelistIp" class="block font-bold mb-3">Whitelist IP</label>
+                    <AutoComplete inputId="whitelistIp" v-model="autoComplete.whitelistIp" :multiple="true" :typeahead="false" @blur="onBlurAutoCompelete" placeholder="Type and press enter" fluid />
                 </div>
                 <div class="grid grid-cols-12 gap-4">
                     <div class="col-span-6">
@@ -596,7 +300,7 @@ const exportCSV = () => {
                     </div>
                     <div class="col-span-6">
                         <label for="status" class="block font-bold mb-3">Status</label>
-                        <Select id="status" v-model="routeModel.status" :options="dropDownstatuses" optionLabel="label" optionValue="value" placeholder="Select a Status" fluid></Select>
+                        <Select id="status" v-model="routeModel.status" :options="dropDownStatuses" optionLabel="label" optionValue="value" placeholder="Select a status" fluid></Select>
                     </div>
                 </div>
                 <div>

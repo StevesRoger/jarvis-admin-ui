@@ -1,9 +1,9 @@
-import { formatDateWithTime } from './DateUtil';
+import { formatDateWithTime } from './dateUtil';
 export const converter = (dataType, value) => {
     if (dataType === 'number') {
         return isValidNumber(value) ? Number(value) : 0;
     } else if (dataType === 'boolean') {
-        return value === 'true' || value === 'false' ? Boolean(value) : false;
+        return value === 'true' || value === 'false' ? Boolean(value) : value;
     } else if (dataType === 'date') {
         return formatDateWithTime(value);
     }

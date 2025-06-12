@@ -19,6 +19,11 @@ const router = createRouter({
                     component: () => import('@/views/gateway/route/Index.vue')
                 },
                 {
+                    path: '/route-security',
+                    name: 'route-security',
+                    component: () => import('@/views/gateway/route-security/Index.vue')
+                },
+                {
                     path: '/uikit/formlayout',
                     name: 'formlayout',
                     component: () => import('@/views/uikit/FormLayout.vue')

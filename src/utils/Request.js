@@ -1,7 +1,7 @@
 import axios from 'axios';
 import applyCaseMiddleware from 'axios-case-converter';
 import { v4 as uuidv4 } from 'uuid';
-import { showToast } from './ToastService';
+import { showToast } from './toastService';
 
 const request = applyCaseMiddleware(
     axios.create({
@@ -30,18 +30,21 @@ request.interceptors.response.use(
     async (error) => {
         if (error.response) {
             // Server responded with a status code outside 2xx
-            const { message, data } = error.response.data;
-            console.error('Error data:', data);
-            showToast({ severity: 'error', summary: 'Error Message', detail: message, life: 3000 });
+            const message = error.response.data['message'];
+            const summary = error.config['summary'] || 'Error response';
+            showToast({ severity: 'error', summary: summary, detail: message, life: 3000 });
         } else if (error.request) {
             // No response received
-            console.error('No response received:', error.request);
-            showToast({ severity: 'error', summary: 'Connectivity error', detail: 'There is an abnormality in your network and you cannot connect to the server', life: 3000 });
+            console.error('No response received:', error, error.request, error.message);
+            const code = error.code;
+            let message = 'There is an abnormality in your network and you cannot connect to the server';
+            if (code === 'ERR_NETWORK') message = 'Error cannot connect to server';
+            showToast({ severity: 'error', summary: 'Connectivity error', detail: message, life: 3000 });
         } else {
             // Something else happened
             console.error('Error setting up request:', error.message);
             showToast({ severity: 'error', summary: 'Unexpected error', detail: error.message, life: 3000 });
-        } // Optionally, you can throw the error again or return a custom object
+        }
         return Promise.reject(error);
     }
 );
