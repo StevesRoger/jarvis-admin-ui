@@ -243,7 +243,9 @@ const scrollToFirstError = () => {
             firstErrorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
             firstErrorEl.focus();
             const inputEl = firstErrorEl.querySelector('input');
-            if (inputEl) inputEl.focus();
+            if (inputEl) {
+                inputEl.focus();
+            }
         }
     });
 };

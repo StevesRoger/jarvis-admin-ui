@@ -19,6 +19,11 @@ const router = createRouter({
                     component: () => import('@/views/gateway/route/Index.vue')
                 },
                 {
+                    path: '/route-redirect',
+                    name: 'route-redirect',
+                    component: () => import('@/views/gateway/route-redirect/Index.vue')
+                },
+                {
                     path: '/route-security',
                     name: 'route-security',
                     component: () => import('@/views/gateway/route-security/Index.vue')

@@ -15,7 +15,7 @@ import {
     errorMessage,
     exportCSV,
     fetchRoute,
-    filterNameMatchMode,
+    filterMatchMode,
     filters,
     globalFilterFields,
     hideDialog,
@@ -23,9 +23,11 @@ import {
     isEdit,
     isFilter,
     limit,
+    list,
     loadingSubmit,
     loadingTable,
     mapFilterType,
+    modelRef,
     onBlurAutoCompelete,
     onClearFilter,
     onFilter,
@@ -34,10 +36,8 @@ import {
     onSort,
     page,
     resetModel,
-    routeModel,
-    routes,
     saveRoute,
-    selectedRoute,
+    selectedItem,
     showConfirmDelete,
     showConfirmDeleteSelected,
     showDialog,
@@ -79,8 +79,8 @@ onBeforeMount(() => {
             <Toolbar class="mb-6">
                 <template #start>
                     <Button label="New" icon="pi pi-plus" class="mr-2" outlined :disabled="loadingTable" @click="showDialog" />
-                    <Button label="Edit" icon="pi pi pi-pencil" severity="info" outlined class="mr-2" @click="editRoute" :disabled="loadingTable || !selectedRoute" />
-                    <Button label="Delete" icon="pi pi-trash" severity="danger" outlined class="mr-2" @click="showConfirmDeleteSelected" :disabled="loadingTable || !selectedRoute" />
+                    <Button label="Edit" icon="pi pi pi-pencil" severity="info" outlined class="mr-2" @click="editRoute" :disabled="loadingTable || !selectedItem" />
+                    <Button label="Delete" icon="pi pi-trash" severity="danger" outlined class="mr-2" @click="showConfirmDeleteSelected" :disabled="loadingTable || !selectedItem" />
                     <Button label="Clear" icon="pi pi-filter-slash" outlined @click="onClearFilter" :disabled="!isFilter" />
                 </template>
 
@@ -91,10 +91,10 @@ onBeforeMount(() => {
 
             <DataTable
                 ref="dt"
-                v-model:selection="selectedRoute"
+                v-model:selection="selectedItem"
                 dataKey="id"
                 v-model:filters="filters"
-                :value="routes"
+                :value="list"
                 :first="page"
                 :rows="limit"
                 :totalRecords="totalRecords"
@@ -132,7 +132,7 @@ onBeforeMount(() => {
                         {{ index + 1 }}
                     </template>
                 </Column>
-                <Column field="id" filterField="name" header="ID" :filterMatchModeOptions="filterNameMatchMode" sortable style="min-width: 12rem">
+                <Column field="id" filterField="name" header="ID" :filterMatchModeOptions="filterMatchMode" sortable style="min-width: 12rem">
                     <template #body="{ data }">
                         {{ data.id }}
                     </template>
@@ -267,23 +267,23 @@ onBeforeMount(() => {
             <div ref="dialogContent" class="flex flex-col gap-6 dialog-content">
                 <div>
                     <label for="id" class="block font-bold mb-3 required">ID</label>
-                    <InputText id="id" v-model.trim="routeModel.id" @blur="validationForm($event)" :disabled="isEdit" placeholder="order" required="true" :invalid="errorMessage.id != null" fluid />
+                    <InputText id="id" v-model.trim="modelRef.id" @blur="validationForm($event)" :disabled="isEdit" placeholder="order" required="true" :invalid="errorMessage.id != null" fluid />
                     <small v-if="errorMessage.id" class="text-red-500">{{ errorMessage.id }}</small>
                 </div>
                 <div>
                     <label for="path" class="block font-bold mb-3 required">Path</label>
-                    <InputText id="path" v-model.trim="routeModel.path" @blur="validationForm($event)" placeholder="/api/**" required="true" :invalid="errorMessage.path != null" fluid />
+                    <InputText id="path" v-model.trim="modelRef.path" @blur="validationForm($event)" placeholder="/api/**" required="true" :invalid="errorMessage.path != null" fluid />
                     <small v-if="errorMessage.path" class="text-red-500">{{ errorMessage.path }}</small>
                 </div>
                 <div>
                     <label for="url" class="block font-bold mb-3 required">URL</label>
-                    <InputText id="url" v-model.trim="routeModel.url" @blur="validationForm($event)" placeholder="http://localhost:8080" required="true" :invalid="errorMessage.url != null" fluid />
+                    <InputText id="url" v-model.trim="modelRef.url" @blur="validationForm($event)" placeholder="http://localhost:8080" required="true" :invalid="errorMessage.url != null" fluid />
                     <small v-if="errorMessage.url" class="text-red-500">{{ errorMessage.url }}</small>
                 </div>
                 <div>
                     <label for="requiredHeader" class="block font-bold mb-3">Required Header</label>
                     <AutoComplete inputId="requiredHeader" v-model="autoComplete.requiredHeader" :multiple="true" :typeahead="false" @blur="onBlurAutoCompelete" placeholder="Type and press enter" fluid />
-                    <!-- <InputChips id="excludeHeader" v-model="routeModel.excludeHeader" separator="," fluid /> -->
+                    <!-- <InputChips id="excludeHeader" v-model="modelRef.excludeHeader" separator="," fluid /> -->
                 </div>
                 <div>
                     <label for="excludeHeader" class="block font-bold mb-3">Exclude Header</label>
@@ -296,22 +296,22 @@ onBeforeMount(() => {
                 <div class="grid grid-cols-12 gap-4">
                     <div class="col-span-6">
                         <label for="timeout" class="block font-bold mb-3">Connection timeout</label>
-                        <InputText id="timeout" type="number" v-model.trim="routeModel.connectionReadTimeout" placeholder="20000" fluid />
+                        <InputText id="timeout" type="number" v-model.trim="modelRef.connectionReadTimeout" placeholder="20000" fluid />
                     </div>
                     <div class="col-span-6">
                         <label for="status" class="block font-bold mb-3">Status</label>
-                        <Select id="status" v-model="routeModel.status" :options="dropDownStatuses" optionLabel="label" optionValue="value" placeholder="Select a status" fluid></Select>
+                        <Select id="status" v-model="modelRef.status" :options="dropDownStatuses" optionLabel="label" optionValue="value" placeholder="Select a status" fluid></Select>
                     </div>
                 </div>
                 <div>
                     <span class="block font-bold mb-4">Strip Prefix</span>
                     <div class="grid grid-cols-12 gap-4">
                         <div class="flex items-center gap-2 col-span-6">
-                            <RadioButton id="strip-prefix-yes" v-model="routeModel.stripPrefix" name="stripPrefix" :value="true" />
+                            <RadioButton id="strip-prefix-yes" v-model="modelRef.stripPrefix" name="stripPrefix" :value="true" />
                             <label for="strip-prefix-yes" style="color: #15803d">YES</label>
                         </div>
                         <div class="flex items-center gap-2 col-span-6">
-                            <RadioButton id="strip-prefix-false" v-model="routeModel.stripPrefix" name="stripPrefix" :value="false" />
+                            <RadioButton id="strip-prefix-false" v-model="modelRef.stripPrefix" name="stripPrefix" :value="false" />
                             <label for="strip-prefix-false" style="color: #b91c1c">NO</label>
                         </div>
                     </div>
@@ -320,11 +320,11 @@ onBeforeMount(() => {
                     <span class="block font-bold mb-4">Enable Redirect</span>
                     <div class="grid grid-cols-12 gap-4">
                         <div class="flex items-center gap-2 col-span-6">
-                            <RadioButton id="enable-redirect-yes" v-model="routeModel.enableRedirect" name="enableRedirect" :value="true" />
+                            <RadioButton id="enable-redirect-yes" v-model="modelRef.enableRedirect" name="enableRedirect" :value="true" />
                             <label for="enable-redirect-yes" style="color: #15803d">YES</label>
                         </div>
                         <div class="flex items-center gap-2 col-span-6">
-                            <RadioButton id="enable-redirect-false" v-model="routeModel.enableRedirect" name="enableRedirect" :value="false" />
+                            <RadioButton id="enable-redirect-false" v-model="modelRef.enableRedirect" name="enableRedirect" :value="false" />
                             <label for="enable-redirect-false" style="color: #b91c1c">NO</label>
                         </div>
                     </div>
@@ -342,8 +342,8 @@ onBeforeMount(() => {
         <Dialog v-model:visible="displayConfirmDelete" :style="{ width: '450px' }" header="Confirm" :modal="true">
             <div class="flex items-center gap-4">
                 <i class="pi pi-exclamation-triangle !text-3xl" />
-                <span v-if="routeModel"
-                    >Are you sure you want to delete <b>{{ routeModel.id }}</b
+                <span v-if="modelRef"
+                    >Are you sure you want to delete <b>{{ modelRef.id }}</b
                     >?</span
                 >
             </div>
@@ -356,7 +356,7 @@ onBeforeMount(() => {
         <Dialog v-model:visible="displayDeleteSelected" :style="{ width: '450px' }" header="Confirm" :modal="true">
             <div class="flex items-center gap-4">
                 <i class="pi pi-exclamation-triangle !text-3xl" />
-                <span v-if="routeModel">Are you sure you want to delete the selected route?</span>
+                <span v-if="modelRef">Are you sure you want to delete the selected route?</span>
             </div>
             <template #footer>
                 <Button label="No" icon="pi pi-times" @click="displayDeleteSelected = false" />
