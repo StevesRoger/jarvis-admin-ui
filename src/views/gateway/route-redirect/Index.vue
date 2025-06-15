@@ -1,10 +1,8 @@
 <script setup>
 import { dropDownStatuses, getStatusSeverity, statuses } from '@/utils/componentUtil';
-import { onBeforeMount, onMounted, ref, watch } from 'vue';
+import { onBeforeMount, onMounted, watch } from 'vue';
 import {
     autoComplete,
-    deleteRouteSecurity,
-    deleteSelectedRouteSecurity,
     dialogContent,
     dialogTitle,
     displayConfirmDelete,
@@ -15,7 +13,7 @@ import {
     editRouteSecurity,
     errorMessage,
     exportCSV,
-    fetchRouteSecurity,
+    fetchRouteRedirect,
     filterMatchMode,
     filters,
     globalFilterFields,
@@ -24,6 +22,7 @@ import {
     isEdit,
     isFilter,
     limit,
+    list,
     loadingRouteIds,
     loadingSubmit,
     loadingTable,
@@ -36,19 +35,12 @@ import {
     onSort,
     page,
     resetModel,
-    routeIds,
-    routeSecurities,
-    routeSecurityModel,
-    saveRouteSecurity,
-    selectedRouteSecurity,
+    selectedItem,
     showConfirmDelete,
     showConfirmDeleteSelected,
     showDialog,
     totalRecords
 } from './useRouteRedirect';
-
-const allMethods = ref(['GET', 'POST', 'PUT', 'DELETE']);
-const filteredMethods = ref([]);
 
 let delaySearch;
 
@@ -59,7 +51,7 @@ watch(
         delaySearch = setTimeout(() => {
             initTableParam(dt.value);
             if (newValue != null) {
-                fetchRouteSecurity();
+                fetchRouteRedirect();
                 isFilter.value = true;
             }
         }, 500);
@@ -74,17 +66,8 @@ onBeforeMount(() => {
         mapFilterType.value.set(key, dataType);
     });
     initTableParam();
-    fetchRouteSecurity();
+    fetchRouteRedirect();
 });
-
-const searchMethod = (event) => {
-    const query = event.query;
-    if (!query || query.trim().length <= 0) {
-        filteredMethods.value = [...allMethods.value];
-    } else {
-        filteredMethods.value = allMethods.value.filter((method) => method.toLowerCase().startsWith(query.trim().toLowerCase()));
-    }
-};
 </script>
 
 <template>
@@ -105,10 +88,10 @@ const searchMethod = (event) => {
 
             <DataTable
                 ref="dt"
-                v-model:selection="selectedRouteSecurity"
+                v-model:selection="selectedItem"
                 dataKey="id"
                 v-model:filters="filters"
-                :value="routeSecurities"
+                :value="list"
                 :first="page"
                 :rows="limit"
                 :totalRecords="totalRecords"
@@ -126,7 +109,7 @@ const searchMethod = (event) => {
                 rowHover
                 removableSort
                 paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
-                currentPageReportTemplate="Showing {first} to {last} of {totalRecords} routeSecurities"
+                currentPageReportTemplate="Showing {first} to {last} of {totalRecords} route redirect"
             >
                 <template #header>
                     <div class="flex flex-wrap gap-2 items-center justify-between">
@@ -301,7 +284,7 @@ const searchMethod = (event) => {
             <div ref="dialogContent" class="flex flex-col gap-6 dialog-content">
                 <div v-if="isEdit">
                     <label for="id" class="block font-bold mb-3">ID</label>
-                    <InputText id="id" v-model.trim="routeSecurityModel.id" :disabled="isEdit" fluid />
+                    <InputText id="id" v-model.trim="modelRef.id" :disabled="isEdit" fluid />
                 </div>
                 <div>
                     <label for="patterns" class="block font-bold mb-3 required">Pattern</label>
@@ -310,7 +293,7 @@ const searchMethod = (event) => {
                 </div>
                 <div>
                     <label for="methods" class="block font-bold mb-3">Method</label>
-                    <AutoComplete inputId="methods" v-model="routeSecurityModel.methods" :suggestions="filteredMethods" @complete="searchMethod" dropdown multiple display="chip" placeholder="Search method" fluid />
+                    <AutoComplete inputId="methods" v-model="modelRef.methods" :suggestions="filteredMethods" @complete="searchMethod" dropdown multiple display="chip" placeholder="Search method" fluid />
                 </div>
                 <div>
                     <label for="roles" class="block font-bold mb-3">Role</label>
@@ -318,31 +301,31 @@ const searchMethod = (event) => {
                 </div>
                 <div>
                     <label for="order" class="block font-bold mb-3">Order</label>
-                    <InputText id="order" type="number" v-model.trim="routeSecurityModel.order" placeholder="1" fluid />
+                    <InputText id="order" type="number" v-model.trim="modelRef.order" placeholder="1" fluid />
                 </div>
                 <div>
                     <label for="routeId" class="block font-bold mb-3">Route id</label>
-                    <Select id="routeId" v-model="routeSecurityModel.routeId" :options="routeIds" :loading="loadingRouteIds" placeholder="Select a route id" fluid></Select>
+                    <Select id="routeId" v-model="modelRef.routeId" :options="routeIds" :loading="loadingRouteIds" placeholder="Select a route id" fluid></Select>
                 </div>
                 <div class="grid grid-cols-12 gap-4">
                     <div class="col-span-6">
                         <label for="status" class="block font-bold mb-3">Status</label>
-                        <Select id="status" v-model="routeSecurityModel.status" :options="dropDownStatuses" optionLabel="label" optionValue="value" placeholder="Select a status" fluid></Select>
+                        <Select id="status" v-model="modelRef.status" :options="dropDownStatuses" optionLabel="label" optionValue="value" placeholder="Select a status" fluid></Select>
                     </div>
                     <div class="col-span-6">
                         <label for="type" class="block font-bold mb-3">Type</label>
-                        <Select id="type" v-model="routeSecurityModel.type" :options="dropDownType" optionLabel="label" optionValue="value" placeholder="Select a type" fluid></Select>
+                        <Select id="type" v-model="modelRef.type" :options="dropDownType" optionLabel="label" optionValue="value" placeholder="Select a type" fluid></Select>
                     </div>
                 </div>
                 <div>
                     <span class="block font-bold mb-4">Deny</span>
                     <div class="grid grid-cols-12 gap-4">
                         <div class="flex items-center gap-2 col-span-6">
-                            <RadioButton id="denyAll-yes" v-model="routeSecurityModel.denyAll" name="denyAll" :value="true" />
+                            <RadioButton id="denyAll-yes" v-model="modelRef.denyAll" name="denyAll" :value="true" />
                             <label for="denyAll-yes" style="color: #15803d">YES</label>
                         </div>
                         <div class="flex items-center gap-2 col-span-6">
-                            <RadioButton id="denyAll-false" v-model="routeSecurityModel.denyAll" name="denyAll" :value="false" />
+                            <RadioButton id="denyAll-false" v-model="modelRef.denyAll" name="denyAll" :value="false" />
                             <label for="denyAll-false" style="color: #b91c1c">NO</label>
                         </div>
                     </div>
@@ -351,11 +334,11 @@ const searchMethod = (event) => {
                     <span class="block font-bold mb-4">Permit</span>
                     <div class="grid grid-cols-12 gap-4">
                         <div class="flex items-center gap-2 col-span-6">
-                            <RadioButton id="permitAll-yes" v-model="routeSecurityModel.permitAll" name="permitAll" :value="true" />
+                            <RadioButton id="permitAll-yes" v-model="modelRef.permitAll" name="permitAll" :value="true" />
                             <label for="permitAll-yes" style="color: #15803d">YES</label>
                         </div>
                         <div class="flex items-center gap-2 col-span-6">
-                            <RadioButton id="permitAll-false" v-model="routeSecurityModel.permitAll" name="permitAll" :value="false" />
+                            <RadioButton id="permitAll-false" v-model="modelRef.permitAll" name="permitAll" :value="false" />
                             <label for="permitAll-false" style="color: #b91c1c">NO</label>
                         </div>
                     </div>
@@ -364,11 +347,11 @@ const searchMethod = (event) => {
                     <span class="block font-bold mb-4">Authenticated</span>
                     <div class="grid grid-cols-12 gap-4">
                         <div class="flex items-center gap-2 col-span-6">
-                            <RadioButton id="authenticated-yes" v-model="routeSecurityModel.authenticated" name="authenticated" :value="true" />
+                            <RadioButton id="authenticated-yes" v-model="modelRef.authenticated" name="authenticated" :value="true" />
                             <label for="authenticated-yes" style="color: #15803d">YES</label>
                         </div>
                         <div class="flex items-center gap-2 col-span-6">
-                            <RadioButton id="authenticated-false" v-model="routeSecurityModel.authenticated" name="authenticated" :value="false" />
+                            <RadioButton id="authenticated-false" v-model="modelRef.authenticated" name="authenticated" :value="false" />
                             <label for="authenticated-false" style="color: #b91c1c">NO</label>
                         </div>
                     </div>
@@ -386,8 +369,8 @@ const searchMethod = (event) => {
         <Dialog v-model:visible="displayConfirmDelete" :style="{ width: '450px' }" header="Confirm" :modal="true">
             <div class="flex items-center gap-4">
                 <i class="pi pi-exclamation-triangle !text-3xl" />
-                <span v-if="routeSecurityModel"
-                    >Are you sure you want to delete <b>{{ routeSecurityModel.id }}</b
+                <span v-if="modelRef"
+                    >Are you sure you want to delete <b>{{ modelRef.id }}</b
                     >?</span
                 >
             </div>
@@ -400,11 +383,11 @@ const searchMethod = (event) => {
         <Dialog v-model:visible="displayDeleteSelected" :style="{ width: '450px' }" header="Confirm" :modal="true">
             <div class="flex items-center gap-4">
                 <i class="pi pi-exclamation-triangle !text-3xl" />
-                <span v-if="routeSecurityModel">Are you sure you want to delete the selected route?</span>
+                <span v-if="modelRef">Are you sure you want to delete the selected route redirect?</span>
             </div>
             <template #footer>
                 <Button label="No" icon="pi pi-times" @click="displayDeleteSelected = false" />
-                <Button label="Yes" icon="pi pi-check" severity="danger" @click="deleteSelectedRouteSecurity" />
+                <Button label="Yes" icon="pi pi-check" severity="danger" @click="deleteSelectedRouteRedirect" />
             </template>
         </Dialog>
     </div>

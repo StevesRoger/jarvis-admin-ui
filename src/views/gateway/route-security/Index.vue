@@ -126,7 +126,7 @@ const searchMethod = (event) => {
                 rowHover
                 removableSort
                 paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
-                currentPageReportTemplate="Showing {first} to {last} of {totalRecords} routeSecurities"
+                currentPageReportTemplate="Showing {first} to {last} of {totalRecords} route security"
             >
                 <template #header>
                     <div class="flex flex-wrap gap-2 items-center justify-between">
