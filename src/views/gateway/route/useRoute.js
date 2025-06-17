@@ -8,7 +8,7 @@ import { ref } from 'vue';
 
 const globalFilterFields = ref(['name', 'path', 'url', 'connectionReadTimeout', 'createdBy', 'excludeHeader', 'requiredHeader', 'whitelistIp', 'status']);
 const { exportCSV, initTableParam, buildQueryParam, loadingTable, dt, page, limit, totalRecords, mapFilterType, filterMatchMode, isFilter, selectedItem, isEdit, loadingSubmit, list } = useDataTable({ globalFilterFields: globalFilterFields.value });
-const { showConfirmDelete, showConfirmDeleteSelected, scrollToFirstError, modelRef, dialogTitle, displayConfirmDelete, displayDeleteSelected, dialogContent, displayDialog } = useDialog();
+const { showConfirmDelete, showConfirmDeleteSelected, scrollToFirstError, autoCompleteToModel, modelToAutoComplete, autoCompeleteChip, modelRef, dialogTitle, displayConfirmDelete, displayDeleteSelected, dialogContent, displayDialog } = useDialog();
 
 const filters = ref({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -81,26 +81,10 @@ const onClearFilter = () => {
     if (isRefresh) fetchRoute();
 };
 
-const autoCompleteToModel = (model) => {
-    if (model) {
-        model.requiredHeader = [...new Set([...autoComplete.value.requiredHeader])];
-        model.excludeHeader = [...new Set([...autoComplete.value.excludeHeader])];
-        model.whitelistIp = [...new Set([...autoComplete.value.whitelistIp])];
-    }
-};
-
-const modelToAutoComplete = (model) => {
-    if (model) {
-        autoComplete.value.requiredHeader = [...new Set([...model.requiredHeader])];
-        autoComplete.value.excludeHeader = [...new Set([...model.excludeHeader])];
-        autoComplete.value.whitelistIp = [...new Set([...model.whitelistIp])];
-    }
-};
-
 const onRowDblClick = (event) => {
     modelRef.value = { ...event.data };
     const model = modelRef.value;
-    modelToAutoComplete(model);
+    modelToAutoComplete(model, autoComplete.value, ['requiredHeader', 'excludeHeader', 'whitelistIp']);
     dialogTitle.value = 'Edit route ' + model?.id;
     displayDialog.value = true;
     isEdit.value = true;
@@ -174,7 +158,7 @@ const editRoute = (param) => {
         modelRef.value = { ...selectedItem.value };
     }
     const model = modelRef.value;
-    modelToAutoComplete(model);
+    modelToAutoComplete(model, autoComplete.value, ['requiredHeader', 'excludeHeader', 'whitelistIp']);
     dialogTitle.value = 'Edit route ' + model?.id;
     displayDialog.value = true;
     isEdit.value = true;
@@ -192,7 +176,7 @@ const saveRoute = () => {
         return;
     }
     const model = modelRef.value;
-    autoCompleteToModel(model);
+    autoCompleteToModel(model, autoComplete.value, ['requiredHeader', 'excludeHeader', 'whitelistIp']);
     loadingSubmit.value = true;
     if (isEdit.value) {
         routeService
@@ -250,15 +234,7 @@ const deleteSelectedRoute = () => {
 };
 
 const onBlurAutoCompelete = (event) => {
-    const inputEl = event.target;
-    const id = inputEl.id;
-    const value = inputEl.value.trim();
-    const field = autoComplete.value[id];
-    if (value && field && Array.isArray(field) && !field.includes(value)) {
-        autoComplete.value[id].push(value);
-        autoComplete.value[id] = [...autoComplete.value[id]];
-    }
-    inputEl.value = '';
+    autoCompeleteChip(event, autoComplete.value);
 };
 
 export {

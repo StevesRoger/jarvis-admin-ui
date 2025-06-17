@@ -1,13 +1,13 @@
 import request from '@/utils/request';
 
-export const routeSecurityService = {
+export const routeRedirectService = {
     async listRouteRedirect(params) {
         return request({
             url: '/route/redirect',
             method: 'GET',
             params: params,
             paramsSerializer: (params) => new URLSearchParams(params).toString(),
-            summary: 'Error listing route security'
+            summary: 'Error listing route redirect'
         });
     },
     async addRouteRedirect(body) {
@@ -15,7 +15,7 @@ export const routeSecurityService = {
             url: '/route/redirect',
             method: 'POST',
             data: body,
-            summary: 'Error add route security'
+            summary: 'Error add route redirect'
         });
     },
     async updateRouteRedirect(body) {
@@ -23,14 +23,14 @@ export const routeSecurityService = {
             url: '/route/redirect',
             method: 'PUT',
             data: body,
-            summary: 'Error update route security'
+            summary: 'Error update route redirect'
         });
     },
     async deleteRouteRedirect(id) {
         return request({
             url: '/route/redirect/' + id,
             method: 'DELETE',
-            summary: 'Error delete route security'
+            summary: 'Error delete route redirect'
         });
     }
 };

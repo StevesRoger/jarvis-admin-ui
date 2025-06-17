@@ -112,7 +112,7 @@ onBeforeMount(() => {
                 rowHover
                 removableSort
                 paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
-                currentPageReportTemplate="Showing {first} to {last} of {totalRecords} routes"
+                currentPageReportTemplate="Showing {first} to {last} of {totalRecords} route"
             >
                 <template #header>
                     <div class="flex flex-wrap gap-2 items-center justify-between">
@@ -126,7 +126,7 @@ onBeforeMount(() => {
                     </div>
                 </template>
                 <template #empty>No route found</template>
-                <template #loading>Loading route data. Please wait.</template>
+                <template #loading>Loading route. Please wait.</template>
                 <Column header="#" :exportable="false">
                     <template #body="{ index }">
                         {{ index + 1 }}
@@ -343,7 +343,7 @@ onBeforeMount(() => {
             <div class="flex items-center gap-4">
                 <i class="pi pi-exclamation-triangle !text-3xl" />
                 <span v-if="modelRef"
-                    >Are you sure you want to delete <b>{{ modelRef.id }}</b
+                    >Are you sure you want to delete route id <b>{{ modelRef.id }}</b
                     >?</span
                 >
             </div>

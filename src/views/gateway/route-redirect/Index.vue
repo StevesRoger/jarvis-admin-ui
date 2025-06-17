@@ -3,30 +3,34 @@ import { dropDownStatuses, getStatusSeverity, statuses } from '@/utils/component
 import { onBeforeMount, onMounted, watch } from 'vue';
 import {
     autoComplete,
+    deleteRouteRedirect,
+    deleteSelectedRouteRedirect,
     dialogContent,
     dialogTitle,
     displayConfirmDelete,
     displayDeleteSelected,
     displayDialog,
-    dropDownType,
     dt,
-    editRouteSecurity,
+    editRouteRedirect,
     errorMessage,
     exportCSV,
     fetchRouteRedirect,
     filterMatchMode,
     filters,
     globalFilterFields,
+    headers,
     hideDialog,
     initTableParam,
     isEdit,
     isFilter,
+    jsonBody,
     limit,
     list,
     loadingRouteIds,
     loadingSubmit,
     loadingTable,
     mapFilterType,
+    modelRef,
     onBlurAutoCompelete,
     onClearFilter,
     onFilter,
@@ -34,7 +38,10 @@ import {
     onRowDblClick,
     onSort,
     page,
+    queryParams,
     resetModel,
+    routeIds,
+    saveRouteRedirect,
     selectedItem,
     showConfirmDelete,
     showConfirmDeleteSelected,
@@ -68,6 +75,15 @@ onBeforeMount(() => {
     initTableParam();
     fetchRouteRedirect();
 });
+
+const splitSemicolons = (data) => {
+    return (
+        data
+            ?.split(';')
+            .map((item) => item.trim())
+            .filter((item) => item.length > 0) || []
+    );
+};
 </script>
 
 <template>
@@ -76,8 +92,8 @@ onBeforeMount(() => {
             <Toolbar class="mb-6">
                 <template #start>
                     <Button label="New" icon="pi pi-plus" class="mr-2" outlined :disabled="loadingTable" @click="showDialog" />
-                    <Button label="Edit" icon="pi pi pi-pencil" severity="info" outlined class="mr-2" @click="editRouteSecurity" :disabled="loadingTable || !selectedRouteSecurity" />
-                    <Button label="Delete" icon="pi pi-trash" severity="danger" outlined class="mr-2" @click="showConfirmDeleteSelected" :disabled="loadingTable || !selectedRouteSecurity" />
+                    <Button label="Edit" icon="pi pi pi-pencil" severity="info" outlined class="mr-2" @click="editRouteRedirect" :disabled="loadingTable || !selectedItem" />
+                    <Button label="Delete" icon="pi pi-trash" severity="danger" outlined class="mr-2" @click="showConfirmDeleteSelected" :disabled="loadingTable || !selectedItem" />
                     <Button label="Clear" icon="pi pi-filter-slash" outlined @click="onClearFilter" :disabled="!isFilter" />
                 </template>
 
@@ -122,8 +138,8 @@ onBeforeMount(() => {
                         </IconField>
                     </div>
                 </template>
-                <template #empty>No route security found</template>
-                <template #loading>Loading route security data. Please wait.</template>
+                <template #empty>No route redirect found</template>
+                <template #loading>Loading route redirect. Please wait.</template>
                 <Column header="#" :exportable="false">
                     <template #body="{ index }">
                         {{ index + 1 }}
@@ -137,82 +153,84 @@ onBeforeMount(() => {
                         <InputText v-model="filterModel.value" type="text" placeholder="Search by id" />
                     </template>
                 </Column>
-                <Column field="patterns" filterField="patterns" header="Pattern" :filterMatchModeOptions="filterMatchMode" style="min-width: 14rem">
+                <Column field="endpoint" filterField="endpoint" header="Endpoint" :filterMatchModeOptions="filterMatchMode" style="min-width: 14rem">
                     <template #body="{ data }">
                         <ul style="padding-left: 1rem; margin: 0">
-                            <li v-for="(pattern, index) in data.patterns" :key="index">{{ pattern }}</li>
+                            <li v-for="(pattern, index) in data.endpoint" :key="index">{{ pattern }}</li>
                         </ul>
                     </template>
                     <template #filter="{ filterModel }">
-                        <InputText v-model="filterModel.value" type="text" placeholder="Search by pattern" />
+                        <InputText v-model="filterModel.value" type="text" placeholder="Search by endpoint" />
                     </template>
                 </Column>
-                <Column field="methods" filterField="methods" header="Method" :filterMatchModeOptions="filterMatchMode" style="min-width: 14rem">
+                <Column field="header" filterField="header" header="Header" :filterMatchModeOptions="filterMatchMode" style="min-width: 14rem">
                     <template #body="{ data }">
-                        {{ data.methods.join(', ') }}
+                        <ul style="padding-left: 1rem; margin: 0">
+                            <li v-for="(header, index) in splitSemicolons(data.header)" :key="index">{{ header }}</li>
+                        </ul>
                     </template>
                     <template #filter="{ filterModel }">
-                        <InputText v-model="filterModel.value" type="text" placeholder="Search by method" />
+                        <InputText v-model="filterModel.value" type="text" placeholder="Search by header" />
                     </template>
                 </Column>
-                <Column field="roles" filterField="roles" header="Role" :filterMatchModeOptions="filterMatchMode" style="min-width: 14rem">
+                <Column field="queryParam" filterField="queryParam" header="Query Param" :filterMatchModeOptions="filterMatchMode" style="min-width: 14rem">
                     <template #body="{ data }">
-                        {{ data.roles.join(', ') }}
+                        <ul style="padding-left: 1rem; margin: 0">
+                            <li v-for="(param, index) in splitSemicolons(data.queryParam)" :key="index">{{ param }}</li>
+                        </ul>
                     </template>
                     <template #filter="{ filterModel }">
-                        <InputText v-model="filterModel.value" type="text" placeholder="Search by role" />
+                        <InputText v-model="filterModel.value" type="text" placeholder="Search by query param" />
                     </template>
                 </Column>
-                <Column field="denyAll" filterField="denyAll" header="Deny" dataType="boolean" bodyClass="text-center" style="min-width: 12rem">
+                <Column field="jsonBody" filterField="jsonBody" header="Json Body" :filterMatchModeOptions="filterMatchMode" style="min-width: 14rem">
                     <template #body="{ data }">
-                        <p v-if="data.denyAll" style="color: #15803d">YES</p>
-                        <p v-if="!data.denyAll" style="color: #b91c1c">NO</p>
+                        <ul style="padding-left: 1rem; margin: 0">
+                            <li v-for="(body, index) in splitSemicolons(data.jsonBody)" :key="index">{{ body }}</li>
+                        </ul>
+                    </template>
+                    <template #filter="{ filterModel }">
+                        <InputText v-model="filterModel.value" type="text" placeholder="Search by json body" />
+                    </template>
+                </Column>
+                <Column field="ip" filterField="ip" header="IP" :filterMatchModeOptions="filterMatchMode" style="min-width: 14rem">
+                    <template #body="{ data }">
+                        {{ data.ip.join(', ') }}
+                    </template>
+                    <template #filter="{ filterModel }">
+                        <InputText v-model="filterModel.value" type="text" placeholder="Search by ip" />
+                    </template>
+                </Column>
+                <Column field="userIds" filterField="userIds" header="User Ids" :filterMatchModeOptions="filterMatchMode" style="min-width: 14rem">
+                    <template #body="{ data }">
+                        {{ data.userIds.join(', ') }}
+                    </template>
+                    <template #filter="{ filterModel }">
+                        <InputText v-model="filterModel.value" type="text" placeholder="Search by user id" />
+                    </template>
+                </Column>
+                <Column field="userRoles" filterField="userRoles" header="User Roles" :filterMatchModeOptions="filterMatchMode" style="min-width: 14rem">
+                    <template #body="{ data }">
+                        {{ data.userRoles.join(', ') }}
+                    </template>
+                    <template #filter="{ filterModel }">
+                        <InputText v-model="filterModel.value" type="text" placeholder="Search by user role" />
+                    </template>
+                </Column>
+                <Column field="forbidden" filterField="forbidden" header="Forbidden" dataType="boolean" bodyClass="text-center" style="min-width: 12rem">
+                    <template #body="{ data }">
+                        <p v-if="data.forbidden" style="color: #15803d">YES</p>
+                        <p v-if="!data.forbidden" style="color: #b91c1c">NO</p>
                     </template>
                     <template #filter="{ filterModel }">
                         <div class="flex flex-wrap gap-4">
                             <div class="flex items-center gap-2">
-                                <RadioButton v-model="filterModel.value" inputId="denyAll-yes" name="denyAll" :value="true" />
-                                <label for="denyAll-yes" style="color: #15803d">YES</label>
+                                <RadioButton v-model="filterModel.value" inputId="forbidden-yes" name="forbidden" :value="true" />
+                                <label for="forbidden-yes" style="color: #15803d">YES</label>
                             </div>
                             <div class="flex items-center gap-2">
-                                <RadioButton v-model="filterModel.value" inputId="denyAll-no" name="denyAll" :value="false" />
-                                <label for="denyAll-no" style="color: #b91c1c">NO</label>
-                            </div>
-                        </div>
-                    </template>
-                </Column>
-                <Column field="permitAll" filterField="permitAll" header="Permit" dataType="boolean" bodyClass="text-center" style="min-width: 12rem">
-                    <template #body="{ data }">
-                        <p v-if="data.permitAll" style="color: #15803d">YES</p>
-                        <p v-if="!data.permitAll" style="color: #b91c1c">NO</p>
-                    </template>
-                    <template #filter="{ filterModel }">
-                        <div class="flex flex-wrap gap-4">
-                            <div class="flex items-center gap-2">
-                                <RadioButton v-model="filterModel.value" inputId="permitAll-yes" name="permitAll" :value="true" />
-                                <label for="permitAll-yes" style="color: #15803d">YES</label>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <RadioButton v-model="filterModel.value" inputId="permitAll-no" name="permitAll" :value="false" />
-                                <label for="permitAll-no" style="color: #b91c1c">NO</label>
-                            </div>
-                        </div>
-                    </template>
-                </Column>
-                <Column field="authenticated" filterField="authenticated" header="Authenticated" dataType="boolean" bodyClass="text-center" style="min-width: 12rem">
-                    <template #body="{ data }">
-                        <p v-if="data.authenticated" style="color: #15803d">YES</p>
-                        <p v-if="!data.authenticated" style="color: #b91c1c">NO</p>
-                    </template>
-                    <template #filter="{ filterModel }">
-                        <div class="flex flex-wrap gap-4">
-                            <div class="flex items-center gap-2">
-                                <RadioButton v-model="filterModel.value" inputId="authenticated-yes" name="authenticated" :value="true" />
-                                <label for="authenticated-yes" style="color: #15803d">YES</label>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <RadioButton v-model="filterModel.value" inputId="authenticated-no" name="authenticated" :value="false" />
-                                <label for="authenticated-no" style="color: #b91c1c">NO</label>
+                                <RadioButton v-model="filterModel.value" inputId="forbidden-no" name="forbidden" :value="false" />
+                                <label for="forbidden-no" style="color: #b91c1c">NO</label>
                             </div>
                         </div>
                     </template>
@@ -231,14 +249,6 @@ onBeforeMount(() => {
                     </template>
                     <template #filter="{ filterModel }">
                         <InputText v-model="filterModel.value" type="number" placeholder="Search by order" />
-                    </template>
-                </Column>
-                <Column field="type" filterField="type" header="Type" :showFilterMatchModes="false" style="min-width: 12rem">
-                    <template #body="{ data }">
-                        {{ data.type }}
-                    </template>
-                    <template #filter="{ filterModel }">
-                        <InputText v-model="filterModel.value" type="text" placeholder="Search by type" />
                     </template>
                 </Column>
                 <Column field="status" filterField="status" header="Status" :showFilterMatchModes="false" style="min-width: 8rem">
@@ -273,7 +283,7 @@ onBeforeMount(() => {
                 <Column field="updatedDate" header="Update Date" :showFilterMatchModes="false" dataType="date" style="min-width: 14rem" />
                 <Column header="Action" :exportable="false" style="min-width: 10rem">
                     <template #body="slotProps">
-                        <Button icon="pi pi-pencil" outlined severity="info" class="mr-2" @click="editRouteSecurity(slotProps.data)" />
+                        <Button icon="pi pi-pencil" outlined severity="info" class="mr-2" @click="editRouteRedirect(slotProps.data)" />
                         <Button icon="pi pi-trash" outlined severity="danger" @click="showConfirmDelete(slotProps.data)" />
                     </template>
                 </Column>
@@ -287,74 +297,57 @@ onBeforeMount(() => {
                     <InputText id="id" v-model.trim="modelRef.id" :disabled="isEdit" fluid />
                 </div>
                 <div>
-                    <label for="patterns" class="block font-bold mb-3 required">Pattern</label>
-                    <AutoComplete inputId="patterns" v-model="autoComplete.patterns" :multiple="true" :typeahead="false" @blur="onBlurAutoCompelete" placeholder="Type and press enter" :invalid="errorMessage.pattern != null" fluid />
-                    <small v-if="errorMessage.pattern" class="text-red-500">{{ errorMessage.pattern }}</small>
+                    <label for="routeId" class="block font-bold mb-3 required">Route id</label>
+                    <Select id="routeId" v-model="modelRef.routeId" :options="routeIds" :loading="loadingRouteIds" placeholder="Select a route id" :invalid="errorMessage.routeId != null" fluid></Select>
+                    <small v-if="errorMessage.routeId" class="text-red-500">{{ errorMessage.routeId }}</small>
                 </div>
                 <div>
-                    <label for="methods" class="block font-bold mb-3">Method</label>
-                    <AutoComplete inputId="methods" v-model="modelRef.methods" :suggestions="filteredMethods" @complete="searchMethod" dropdown multiple display="chip" placeholder="Search method" fluid />
+                    <label for="endpoint" class="block font-bold mb-3">Endpoint</label>
+                    <AutoComplete inputId="endpoint" v-model="autoComplete.endpoint" :multiple="true" :typeahead="false" @blur="onBlurAutoCompelete" placeholder="Type and press enter" fluid />
                 </div>
                 <div>
-                    <label for="roles" class="block font-bold mb-3">Role</label>
-                    <AutoComplete inputId="roles" v-model="autoComplete.roles" :multiple="true" :typeahead="false" @blur="onBlurAutoCompelete" placeholder="Type and press enter" fluid />
+                    <label for="ip" class="block font-bold mb-3">Ip</label>
+                    <AutoComplete inputId="ip" v-model="autoComplete.ip" :multiple="true" :typeahead="false" @blur="onBlurAutoCompelete" placeholder="Type and press enter" fluid />
                 </div>
                 <div>
-                    <label for="order" class="block font-bold mb-3">Order</label>
-                    <InputText id="order" type="number" v-model.trim="modelRef.order" placeholder="1" fluid />
+                    <label for="userIds" class="block font-bold mb-3">User Id</label>
+                    <AutoComplete inputId="userIds" v-model="autoComplete.userIds" :multiple="true" :typeahead="false" @blur="onBlurAutoCompelete" placeholder="Type and press enter" fluid />
                 </div>
                 <div>
-                    <label for="routeId" class="block font-bold mb-3">Route id</label>
-                    <Select id="routeId" v-model="modelRef.routeId" :options="routeIds" :loading="loadingRouteIds" placeholder="Select a route id" fluid></Select>
+                    <label for="userRoles" class="block font-bold mb-3">User Role</label>
+                    <AutoComplete inputId="userRoles" v-model="autoComplete.userRoles" :multiple="true" :typeahead="false" @blur="onBlurAutoCompelete" placeholder="Type and press enter" fluid />
                 </div>
                 <div class="grid grid-cols-12 gap-4">
+                    <div class="col-span-6">
+                        <label for="order" class="block font-bold mb-3">Order</label>
+                        <InputText id="order" type="number" v-model.trim="modelRef.order" placeholder="1" fluid />
+                    </div>
                     <div class="col-span-6">
                         <label for="status" class="block font-bold mb-3">Status</label>
                         <Select id="status" v-model="modelRef.status" :options="dropDownStatuses" optionLabel="label" optionValue="value" placeholder="Select a status" fluid></Select>
                     </div>
-                    <div class="col-span-6">
-                        <label for="type" class="block font-bold mb-3">Type</label>
-                        <Select id="type" v-model="modelRef.type" :options="dropDownType" optionLabel="label" optionValue="value" placeholder="Select a type" fluid></Select>
-                    </div>
                 </div>
                 <div>
-                    <span class="block font-bold mb-4">Deny</span>
+                    <span class="block font-bold mb-4">Forbidden</span>
                     <div class="grid grid-cols-12 gap-4">
                         <div class="flex items-center gap-2 col-span-6">
-                            <RadioButton id="denyAll-yes" v-model="modelRef.denyAll" name="denyAll" :value="true" />
-                            <label for="denyAll-yes" style="color: #15803d">YES</label>
+                            <RadioButton id="forbidden-yes" v-model="modelRef.forbidden" name="forbidden" :value="true" />
+                            <label for="forbidden-yes" style="color: #15803d">YES</label>
                         </div>
                         <div class="flex items-center gap-2 col-span-6">
-                            <RadioButton id="denyAll-false" v-model="modelRef.denyAll" name="denyAll" :value="false" />
-                            <label for="denyAll-false" style="color: #b91c1c">NO</label>
+                            <RadioButton id="forbidden-false" v-model="modelRef.forbidden" name="forbidden" :value="false" />
+                            <label for="forbidden-false" style="color: #b91c1c">NO</label>
                         </div>
                     </div>
                 </div>
                 <div>
-                    <span class="block font-bold mb-4">Permit</span>
-                    <div class="grid grid-cols-12 gap-4">
-                        <div class="flex items-center gap-2 col-span-6">
-                            <RadioButton id="permitAll-yes" v-model="modelRef.permitAll" name="permitAll" :value="true" />
-                            <label for="permitAll-yes" style="color: #15803d">YES</label>
-                        </div>
-                        <div class="flex items-center gap-2 col-span-6">
-                            <RadioButton id="permitAll-false" v-model="modelRef.permitAll" name="permitAll" :value="false" />
-                            <label for="permitAll-false" style="color: #b91c1c">NO</label>
-                        </div>
-                    </div>
+                    <MultiValueInput v-model="headers" title="Header" add-button-label="Add header" values-placeholder="Type and press enter"></MultiValueInput>
                 </div>
                 <div>
-                    <span class="block font-bold mb-4">Authenticated</span>
-                    <div class="grid grid-cols-12 gap-4">
-                        <div class="flex items-center gap-2 col-span-6">
-                            <RadioButton id="authenticated-yes" v-model="modelRef.authenticated" name="authenticated" :value="true" />
-                            <label for="authenticated-yes" style="color: #15803d">YES</label>
-                        </div>
-                        <div class="flex items-center gap-2 col-span-6">
-                            <RadioButton id="authenticated-false" v-model="modelRef.authenticated" name="authenticated" :value="false" />
-                            <label for="authenticated-false" style="color: #b91c1c">NO</label>
-                        </div>
-                    </div>
+                    <MultiValueInput v-model="queryParams" title="Query parameter" add-button-label="Add parameter" values-placeholder="Type and press enter"></MultiValueInput>
+                </div>
+                <div>
+                    <MultiValueInput v-model="jsonBody" title="Json body" add-button-label="Add json body" values-placeholder="Type and press enter"></MultiValueInput>
                 </div>
                 <div v-if="loadingSubmit" class="loading-overlay">
                     <ProgressSpinner class="small-spinner" />
@@ -362,7 +355,7 @@ onBeforeMount(() => {
             </div>
             <template #footer>
                 <Button label="Cancel" icon="pi pi-times" text :disabled="loadingSubmit" @click="hideDialog" />
-                <Button label="Save" icon="pi pi-check" :loading="loadingSubmit" @click="saveRouteSecurity" />
+                <Button label="Save" icon="pi pi-check" :loading="loadingSubmit" @click="saveRouteRedirect" />
             </template>
         </Dialog>
 
@@ -370,13 +363,13 @@ onBeforeMount(() => {
             <div class="flex items-center gap-4">
                 <i class="pi pi-exclamation-triangle !text-3xl" />
                 <span v-if="modelRef"
-                    >Are you sure you want to delete <b>{{ modelRef.id }}</b
+                    >Are you sure you want to delete route redirect id <b>{{ modelRef.id }}</b
                     >?</span
                 >
             </div>
             <template #footer>
                 <Button label="No" icon="pi pi-times" @click="displayConfirmDelete = false" />
-                <Button label="Yes" icon="pi pi-check" severity="danger" @click="deleteRouteSecurity" />
+                <Button label="Yes" icon="pi pi-check" severity="danger" @click="deleteRouteRedirect" />
             </template>
         </Dialog>
 
