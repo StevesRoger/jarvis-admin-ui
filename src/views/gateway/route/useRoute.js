@@ -97,9 +97,10 @@ const resetModel = () => {
     errorMessage.value = { id: null, path: null, url: null };
     modelRef.value = { stripPrefix: true, enableRedirect: false, status: 'ACTIVE', excludeHeader: [], requiredHeader: [], whitelistIp: [] };
     selectedItem.value = null;
-    autoComplete.value.excludeHeader = [];
-    autoComplete.value.requiredHeader = [];
-    autoComplete.value.whitelistIp = [];
+    const autoCompleteValue = autoComplete.value;
+    autoCompleteValue.excludeHeader = [];
+    autoCompleteValue.requiredHeader = [];
+    autoCompleteValue.whitelistIp = [];
 };
 
 const validationForm = (event) => {

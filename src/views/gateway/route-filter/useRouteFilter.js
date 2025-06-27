@@ -1,11 +1,11 @@
 import { useDataTable } from '@/composables/useDataTable';
 import { useDialog } from '@/composables/useDialog';
-import { routeSecurityService } from '@/service/routeSecurityService';
+import { routeFilterService } from '@/service/routeFilterService';
 import { showToast } from '@/utils/toastService';
 import { FilterMatchMode, FilterOperator } from '@primevue/core/api';
 import { ref } from 'vue';
 
-const globalFilterFields = ref(['id', 'patterns', 'methods', 'order', 'createdBy', 'type', 'roles', 'status']);
+const globalFilterFields = ref(['id', 'blacklistIps', 'whitelistIps', 'blockPaths', 'createdBy', 'blockUserAgents', 'order', 'status']);
 const { exportCSV, initTableParam, buildQueryParam, loadingTable, dt, page, limit, totalRecords, mapFilterType, filterMatchMode, isFilter, selectedItem, isEdit, loadingSubmit, list } = useDataTable({ globalFilterFields: globalFilterFields.value });
 const {
     showConfirmDelete,
@@ -14,9 +14,7 @@ const {
     modelToAutoComplete,
     autoCompleteToModel,
     autoCompeleteChip,
-    fetchRouteId,
     loadingRouteIds,
-    routeIds,
     modelRef,
     dialogTitle,
     displayConfirmDelete,
@@ -28,33 +26,25 @@ const {
 const filters = ref({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     id: { value: null, matchMode: FilterMatchMode.EQUALS },
-    routeId: { value: null, matchMode: FilterMatchMode.EQUALS },
-    patterns: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.CONTAINS }] },
-    methods: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.CONTAINS }] },
-    roles: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.CONTAINS }] },
+    blockUserAgents: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.CONTAINS }] },
+    blockPaths: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.CONTAINS }] },
+    whitelistIps: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.CONTAINS }] },
+    blacklistIps: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.CONTAINS }] },
     order: { value: null, matchMode: FilterMatchMode.EQUALS, dataType: 'number' },
-    type: { value: null, matchMode: FilterMatchMode.EQUALS },
-    authenticated: { value: null, matchMode: FilterMatchMode.EQUALS, dataType: 'boolean' },
-    denyAll: { value: null, matchMode: FilterMatchMode.EQUALS, dataType: 'boolean' },
-    permitAll: { value: null, matchMode: FilterMatchMode.EQUALS, dataType: 'boolean' },
     status: { value: null, matchMode: FilterMatchMode.EQUALS },
     createdBy: { value: null, matchMode: FilterMatchMode.CONTAINS },
     createdDate: { value: null, matchMode: FilterMatchMode.DATE_IS, dataType: 'date' }
 });
 
-const dropDownType = ref([
-    { label: 'BEARER', value: 'BEARER' },
-    { label: 'BASIC', value: 'BASIC' }
-]);
-const autoComplete = ref({ patterns: [], methods: [], roles: [] });
+const autoComplete = ref({ blockUserAgents: [], blockPaths: [], whitelistIps: [], blacklistIps: [] });
 const excludeField = ['updatedBy', 'updatedDate', 'createdBy', 'createdDate'];
-const errorMessage = ref({ pattern: null });
+const formValidate = ref({ criteria: null });
 
-const fetchRouteSecurity = async () => {
+const fetchRouteFilter = async () => {
     try {
         loadingTable.value = true;
         selectedItem.value = null;
-        const res = await routeSecurityService.listRouteSecurity(buildQueryParam());
+        const res = await routeFilterService.listRouteFilter(buildQueryParam());
         const data = res.data;
         list.value = data.item;
         totalRecords.value = data.totalRecord;
@@ -68,17 +58,17 @@ const fetchRouteSecurity = async () => {
 
 const onPage = (event) => {
     initTableParam(event);
-    fetchRouteSecurity();
+    fetchRouteFilter();
 };
 
 const onSort = (event) => {
     initTableParam(event);
-    fetchRouteSecurity();
+    fetchRouteFilter();
 };
 
 const onFilter = (event) => {
     initTableParam(event);
-    fetchRouteSecurity();
+    fetchRouteFilter();
     isFilter.value = true;
 };
 
@@ -98,15 +88,14 @@ const onClearFilter = () => {
             filter.value = null;
         }
     });
-    if (isRefresh) fetchRouteSecurity();
+    if (isRefresh) fetchRouteFilter();
 };
 
 const onRowDblClick = (event) => {
-    fetchRouteId();
     modelRef.value = { ...event.data };
     const model = modelRef.value;
-    modelToAutoComplete(model, autoComplete.value, ['patterns', 'methods', 'roles']);
-    dialogTitle.value = 'Edit route security ' + model?.id;
+    modelToAutoComplete(model, autoComplete.value, ['blockUserAgents', 'blockPaths', 'whitelistIps', 'blacklistIps']);
+    dialogTitle.value = 'Edit route filter ' + model?.id;
     displayDialog.value = true;
     isEdit.value = true;
     for (let field of excludeField) {
@@ -115,32 +104,34 @@ const onRowDblClick = (event) => {
 };
 
 const resetModel = () => {
-    errorMessage.value = { pattern: null };
-    modelRef.value = { methods: [], roles: [], patterns: [], denyAll: false, permitAll: true, authenticated: false, type: 'BEARER', status: 'ACTIVE' };
+    formValidate.value = { criteria: null };
+    modelRef.value = { blockUserAgents: [], blockPaths: [], whitelistIps: [], blacklistIps: [], status: 'ACTIVE', order: 1 };
     selectedItem.value = null;
-    routeIds.value = [];
-    autoComplete.value.patterns = [];
-    autoComplete.value.roles = [];
+    const autoCompleteValue = autoComplete.value;
+    autoCompleteValue.blockUserAgents = [];
+    autoCompleteValue.blockPaths = [];
+    autoCompleteValue.whitelistIps = [];
+    autoCompleteValue.blacklistIps = [];
 };
 
-const validationForm = (event) => {
-    const id = event.id || event.target.id;
-    const error = errorMessage.value;
-    const patterns = autoComplete.value.patterns;
-    if (id === 'patterns' || id === 'all') {
-        if (!patterns || !Array.isArray(patterns) || patterns.length <= 0) {
-            error.pattern = 'please enter patterns';
-        } else {
-            error.pattern = null;
-        }
+const validationForm = () => {
+    const error = formValidate.value;
+    const autoCompleteValue = autoComplete.value;
+    const blockUserAgents = autoCompleteValue?.blockUserAgents;
+    const blockPaths = autoCompleteValue?.blockPaths;
+    const whitelistIps = autoCompleteValue?.whitelistIps;
+    const blacklistIps = autoCompleteValue?.blacklistIps;
+    if ((Array.isArray(blockUserAgents) && blockUserAgents.length > 0) || (Array.isArray(blockPaths) && blockPaths.length > 0) || (Array.isArray(whitelistIps) && whitelistIps.length > 0) || (Array.isArray(blacklistIps) && blacklistIps.length > 0)) {
+        error.criteria = null;
+    } else {
+        error.criteria = 'please enter one of the criteria';
     }
 };
 
 const showDialog = () => {
     resetModel();
-    fetchRouteId();
     selectedItem.value = null;
-    dialogTitle.value = 'Add new route security';
+    dialogTitle.value = 'Add new route filter';
     isEdit.value = false;
     displayDialog.value = true;
 };
@@ -150,16 +141,15 @@ const hideDialog = () => {
     displayDialog.value = false;
 };
 
-const editRouteSecurity = (param) => {
-    fetchRouteId();
+const editRouteFilter = (param) => {
     if (param && param.id) {
         modelRef.value = { ...param };
     } else if (selectedItem.value && selectedItem.value.id) {
         modelRef.value = { ...selectedItem.value };
     }
     const model = modelRef.value;
-    modelToAutoComplete(model, autoComplete.value, ['patterns', 'methods', 'roles']);
-    dialogTitle.value = 'Edit route security ' + model?.id;
+    modelToAutoComplete(model, autoComplete.value, ['blockUserAgents', 'blockPaths', 'whitelistIps', 'blacklistIps']);
+    dialogTitle.value = 'Edit route filter ' + model?.id;
     displayDialog.value = true;
     isEdit.value = true;
     for (let field of excludeField) {
@@ -167,23 +157,22 @@ const editRouteSecurity = (param) => {
     }
 };
 
-const saveRouteSecurity = () => {
-    validationForm({ id: 'all' });
-    const error = errorMessage.value;
-    const isValid = !error.pattern;
-    if (!isValid) {
+const saveRouteFilter = () => {
+    validationForm();
+    const error = formValidate.value;
+    if (error.criteria) {
         scrollToFirstError();
         return;
     }
     const model = modelRef.value;
-    autoCompleteToModel(model, autoComplete.value, ['patterns', 'methods', 'roles']);
+    autoCompleteToModel(model, autoComplete.value, ['blockUserAgents', 'blockPaths', 'whitelistIps', 'blacklistIps']);
     loadingSubmit.value = true;
     if (isEdit.value) {
-        routeSecurityService
-            .updateRouteSecurity(model)
+        routeFilterService
+            .updateRouteFilter(model)
             .then((res) => {
-                showToast({ severity: 'success', summary: 'Update route security ' + model?.id, detail: res.message, life: 3000 });
-                fetchRouteSecurity();
+                showToast({ severity: 'success', summary: 'Update route filter ' + model?.id, detail: res.message, life: 3000 });
+                fetchRouteFilter();
                 displayDialog.value = false;
                 resetModel();
             })
@@ -191,11 +180,11 @@ const saveRouteSecurity = () => {
                 loadingSubmit.value = false;
             });
     } else {
-        routeSecurityService
-            .addRouteSecurity(model)
+        routeFilterService
+            .addRouteFilter(model)
             .then((res) => {
-                showToast({ severity: 'success', summary: 'Add route security', detail: res.message, life: 3000 });
-                fetchRouteSecurity();
+                showToast({ severity: 'success', summary: 'Add route filter', detail: res.message, life: 3000 });
+                fetchRouteFilter();
                 displayDialog.value = false;
                 resetModel();
             })
@@ -205,13 +194,13 @@ const saveRouteSecurity = () => {
     }
 };
 
-const deleteRouteSecurity = () => {
+const deleteRouteFilter = () => {
     const id = modelRef.value.id;
-    routeSecurityService
-        .deleteRouteSecurity(id)
+    routeFilterService
+        .deleteRouteFilter(id)
         .then((res) => {
-            showToast({ severity: 'success', summary: 'Delete route security id ' + id, detail: res.message, life: 3000 });
-            fetchRouteSecurity();
+            showToast({ severity: 'success', summary: 'Delete route filter id ' + id, detail: res.message, life: 3000 });
+            fetchRouteFilter();
         })
         .finally(() => {
             displayConfirmDelete.value = false;
@@ -219,13 +208,13 @@ const deleteRouteSecurity = () => {
         });
 };
 
-const deleteSelectedRouteSecurity = () => {
+const deleteSelectedRouteFilter = () => {
     const id = selectedItem.value.id;
-    routeSecurityService
-        .deleteRouteSecurity(id)
+    routeFilterService
+        .deleteRouteFilter(id)
         .then((res) => {
-            showToast({ severity: 'success', summary: 'Delete route security id ' + id, detail: res.message, life: 3000 });
-            fetchRouteSecurity();
+            showToast({ severity: 'success', summary: 'Delete route filter id ' + id, detail: res.message, life: 3000 });
+            fetchRouteFilter();
         })
         .finally(() => {
             displayDeleteSelected.value = false;
@@ -234,32 +223,25 @@ const deleteSelectedRouteSecurity = () => {
 };
 
 const onBlurAutoCompelete = (event) => {
-    const inputEl = event.target;
-    const id = inputEl.id;
-    if (id === 'patterns') {
-        autoCompeleteChip(event, autoComplete.value, () => validationForm(event));
-    } else {
-        autoCompeleteChip(event, autoComplete.value);
-    }
+    autoCompeleteChip(event, autoComplete.value, () => validationForm(event));
 };
 
 export {
     autoComplete,
-    deleteRouteSecurity,
-    deleteSelectedRouteSecurity,
+    deleteRouteFilter,
+    deleteSelectedRouteFilter,
     dialogContent,
     dialogTitle,
     displayConfirmDelete,
     displayDeleteSelected,
     displayDialog,
-    dropDownType,
     dt,
-    editRouteSecurity,
-    errorMessage,
+    editRouteFilter,
     exportCSV,
-    fetchRouteSecurity,
+    fetchRouteFilter,
     filterMatchMode,
     filters,
+    formValidate,
     globalFilterFields,
     hideDialog,
     initTableParam,
@@ -280,8 +262,7 @@ export {
     onSort,
     page,
     resetModel,
-    routeIds,
-    saveRouteSecurity,
+    saveRouteFilter,
     selectedItem,
     showConfirmDelete,
     showConfirmDeleteSelected,

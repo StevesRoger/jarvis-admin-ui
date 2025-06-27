@@ -162,10 +162,11 @@ const resetModel = () => {
     modelRef.value = { endpoint: [], ip: [], userIds: [], userRoles: [], forbidden: false, status: 'ACTIVE' };
     selectedItem.value = null;
     routeIds.value = [];
-    autoComplete.value.endpoint = [];
-    autoComplete.value.ip = [];
-    autoComplete.value.userIds = [];
-    autoComplete.value.userRoles = [];
+    const autoCompleteValue = autoComplete.value;
+    autoCompleteValue.endpoint = [];
+    autoCompleteValue.ip = [];
+    autoCompleteValue.userIds = [];
+    autoCompleteValue.userRoles = [];
     headers.value = [];
     queryParams.value = [];
     jsonBody.value = [];

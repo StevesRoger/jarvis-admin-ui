@@ -1,11 +1,11 @@
 import { useDataTable } from '@/composables/useDataTable';
 import { useDialog } from '@/composables/useDialog';
-import { routeSecurityService } from '@/service/routeSecurityService';
+import { corsService } from '@/service/corsService';
 import { showToast } from '@/utils/toastService';
 import { FilterMatchMode, FilterOperator } from '@primevue/core/api';
 import { ref } from 'vue';
 
-const globalFilterFields = ref(['id', 'patterns', 'methods', 'order', 'createdBy', 'type', 'roles', 'status']);
+const globalFilterFields = ref(['id', 'urls', 'allowedOrigins', 'allowedMethods', 'allowedHeaders', 'exposedHeaders', 'maxAge', 'status']);
 const { exportCSV, initTableParam, buildQueryParam, loadingTable, dt, page, limit, totalRecords, mapFilterType, filterMatchMode, isFilter, selectedItem, isEdit, loadingSubmit, list } = useDataTable({ globalFilterFields: globalFilterFields.value });
 const {
     showConfirmDelete,
@@ -14,9 +14,7 @@ const {
     modelToAutoComplete,
     autoCompleteToModel,
     autoCompeleteChip,
-    fetchRouteId,
     loadingRouteIds,
-    routeIds,
     modelRef,
     dialogTitle,
     displayConfirmDelete,
@@ -28,33 +26,28 @@ const {
 const filters = ref({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     id: { value: null, matchMode: FilterMatchMode.EQUALS },
-    routeId: { value: null, matchMode: FilterMatchMode.EQUALS },
-    patterns: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.CONTAINS }] },
-    methods: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.CONTAINS }] },
-    roles: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.CONTAINS }] },
-    order: { value: null, matchMode: FilterMatchMode.EQUALS, dataType: 'number' },
-    type: { value: null, matchMode: FilterMatchMode.EQUALS },
-    authenticated: { value: null, matchMode: FilterMatchMode.EQUALS, dataType: 'boolean' },
-    denyAll: { value: null, matchMode: FilterMatchMode.EQUALS, dataType: 'boolean' },
-    permitAll: { value: null, matchMode: FilterMatchMode.EQUALS, dataType: 'boolean' },
+    urls: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.CONTAINS }] },
+    allowedOrigins: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.CONTAINS }] },
+    allowedMethods: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.CONTAINS }] },
+    allowedHeaders: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.CONTAINS }] },
+    exposedHeaders: { operator: FilterOperator.AND, constraints: [{ value: null, matchMode: FilterMatchMode.CONTAINS }] },
+    maxAge: { value: null, matchMode: FilterMatchMode.EQUALS, dataType: 'number' },
+    allowCredential: { value: null, matchMode: FilterMatchMode.EQUALS, dataType: 'boolean' },
     status: { value: null, matchMode: FilterMatchMode.EQUALS },
     createdBy: { value: null, matchMode: FilterMatchMode.CONTAINS },
     createdDate: { value: null, matchMode: FilterMatchMode.DATE_IS, dataType: 'date' }
 });
 
-const dropDownType = ref([
-    { label: 'BEARER', value: 'BEARER' },
-    { label: 'BASIC', value: 'BASIC' }
-]);
-const autoComplete = ref({ patterns: [], methods: [], roles: [] });
+const autoComplete = ref({ urls: [], allowedOrigins: [], allowedMethods: [], allowedHeaders: [], exposedHeaders: [] });
 const excludeField = ['updatedBy', 'updatedDate', 'createdBy', 'createdDate'];
-const errorMessage = ref({ pattern: null });
+const autoCompleteField = ['urls', 'allowedOrigins', 'allowedMethods', 'allowedHeaders', 'exposedHeaders'];
+const formValidate = ref({ urls: null, allowedOrigins: null, allowedMethods: null, allowedHeaders: null });
 
-const fetchRouteSecurity = async () => {
+const fetchCors = async () => {
     try {
         loadingTable.value = true;
         selectedItem.value = null;
-        const res = await routeSecurityService.listRouteSecurity(buildQueryParam());
+        const res = await corsService.listCors(buildQueryParam());
         const data = res.data;
         list.value = data.item;
         totalRecords.value = data.totalRecord;
@@ -68,17 +61,17 @@ const fetchRouteSecurity = async () => {
 
 const onPage = (event) => {
     initTableParam(event);
-    fetchRouteSecurity();
+    fetchCors();
 };
 
 const onSort = (event) => {
     initTableParam(event);
-    fetchRouteSecurity();
+    fetchCors();
 };
 
 const onFilter = (event) => {
     initTableParam(event);
-    fetchRouteSecurity();
+    fetchCors();
     isFilter.value = true;
 };
 
@@ -98,15 +91,14 @@ const onClearFilter = () => {
             filter.value = null;
         }
     });
-    if (isRefresh) fetchRouteSecurity();
+    if (isRefresh) fetchCors();
 };
 
 const onRowDblClick = (event) => {
-    fetchRouteId();
     modelRef.value = { ...event.data };
     const model = modelRef.value;
-    modelToAutoComplete(model, autoComplete.value, ['patterns', 'methods', 'roles']);
-    dialogTitle.value = 'Edit route security ' + model?.id;
+    modelToAutoComplete(model, autoComplete.value, autoCompleteField);
+    dialogTitle.value = 'Edit cors ' + model?.id;
     displayDialog.value = true;
     isEdit.value = true;
     for (let field of excludeField) {
@@ -115,32 +107,38 @@ const onRowDblClick = (event) => {
 };
 
 const resetModel = () => {
-    errorMessage.value = { pattern: null };
-    modelRef.value = { methods: [], roles: [], patterns: [], denyAll: false, permitAll: true, authenticated: false, type: 'BEARER', status: 'ACTIVE' };
+    formValidate.value = { criteria: null };
+    modelRef.value = { urls: [], allowedOrigins: [], allowedMethods: [], allowedHeaders: [], exposedHeaders: [], allowCredential: false, maxAge: 3600, status: 'ACTIVE' };
     selectedItem.value = null;
-    routeIds.value = [];
-    autoComplete.value.patterns = [];
-    autoComplete.value.roles = [];
+    const autoCompleteValue = autoComplete.value;
+    autoCompleteValue.urls = [];
+    autoCompleteValue.allowedOrigins = [];
+    autoCompleteValue.allowedMethods = [];
+    autoCompleteValue.allowedHeaders = [];
+    autoCompleteValue.exposedHeaders = [];
 };
 
-const validationForm = (event) => {
-    const id = event.id || event.target.id;
-    const error = errorMessage.value;
-    const patterns = autoComplete.value.patterns;
-    if (id === 'patterns' || id === 'all') {
-        if (!patterns || !Array.isArray(patterns) || patterns.length <= 0) {
-            error.pattern = 'please enter patterns';
-        } else {
-            error.pattern = null;
-        }
-    }
+const validationForm = () => {
+    const error = formValidate.value;
+    const autoCompleteValue = autoComplete.value;
+    const urls = autoCompleteValue?.urls;
+    const allowedOrigins = autoCompleteValue?.allowedOrigins;
+    const allowedMethods = autoCompleteValue?.allowedMethods;
+    const allowedHeaders = autoCompleteValue?.allowedHeaders;
+    if (!Array.isArray(urls) || urls.length <= 0) error.urls = 'please enter url';
+    else error.urls = null;
+    if (!Array.isArray(allowedOrigins) || allowedOrigins.length <= 0) error.allowedOrigins = 'please enter allow origin';
+    else error.allowedOrigins = null;
+    if (!Array.isArray(allowedMethods) || allowedMethods.length <= 0) error.allowedMethods = 'please enter allow method';
+    else error.allowedMethods = null;
+    if (!Array.isArray(allowedHeaders) || allowedHeaders.length <= 0) error.allowedHeaders = 'please enter allow header';
+    else error.allowedHeaders = null;
 };
 
 const showDialog = () => {
     resetModel();
-    fetchRouteId();
     selectedItem.value = null;
-    dialogTitle.value = 'Add new route security';
+    dialogTitle.value = 'Add new cors';
     isEdit.value = false;
     displayDialog.value = true;
 };
@@ -150,16 +148,15 @@ const hideDialog = () => {
     displayDialog.value = false;
 };
 
-const editRouteSecurity = (param) => {
-    fetchRouteId();
+const editCors = (param) => {
     if (param && param.id) {
         modelRef.value = { ...param };
     } else if (selectedItem.value && selectedItem.value.id) {
         modelRef.value = { ...selectedItem.value };
     }
     const model = modelRef.value;
-    modelToAutoComplete(model, autoComplete.value, ['patterns', 'methods', 'roles']);
-    dialogTitle.value = 'Edit route security ' + model?.id;
+    modelToAutoComplete(model, autoComplete.value, autoCompleteField);
+    dialogTitle.value = 'Edit cors ' + model?.id;
     displayDialog.value = true;
     isEdit.value = true;
     for (let field of excludeField) {
@@ -167,23 +164,22 @@ const editRouteSecurity = (param) => {
     }
 };
 
-const saveRouteSecurity = () => {
-    validationForm({ id: 'all' });
-    const error = errorMessage.value;
-    const isValid = !error.pattern;
-    if (!isValid) {
+const saveCors = () => {
+    validationForm();
+    const error = formValidate.value;
+    if (error.criteria) {
         scrollToFirstError();
         return;
     }
     const model = modelRef.value;
-    autoCompleteToModel(model, autoComplete.value, ['patterns', 'methods', 'roles']);
+    autoCompleteToModel(model, autoComplete.value, autoCompleteField);
     loadingSubmit.value = true;
     if (isEdit.value) {
-        routeSecurityService
-            .updateRouteSecurity(model)
+        corsService
+            .updateCors(model)
             .then((res) => {
-                showToast({ severity: 'success', summary: 'Update route security ' + model?.id, detail: res.message, life: 3000 });
-                fetchRouteSecurity();
+                showToast({ severity: 'success', summary: 'Update cors ' + model?.id, detail: res.message, life: 3000 });
+                fetchCors();
                 displayDialog.value = false;
                 resetModel();
             })
@@ -191,11 +187,11 @@ const saveRouteSecurity = () => {
                 loadingSubmit.value = false;
             });
     } else {
-        routeSecurityService
-            .addRouteSecurity(model)
+        corsService
+            .addCors(model)
             .then((res) => {
-                showToast({ severity: 'success', summary: 'Add route security', detail: res.message, life: 3000 });
-                fetchRouteSecurity();
+                showToast({ severity: 'success', summary: 'Add cors', detail: res.message, life: 3000 });
+                fetchCors();
                 displayDialog.value = false;
                 resetModel();
             })
@@ -205,13 +201,13 @@ const saveRouteSecurity = () => {
     }
 };
 
-const deleteRouteSecurity = () => {
+const deleteCors = () => {
     const id = modelRef.value.id;
-    routeSecurityService
-        .deleteRouteSecurity(id)
+    corsService
+        .deleteCors(id)
         .then((res) => {
-            showToast({ severity: 'success', summary: 'Delete route security id ' + id, detail: res.message, life: 3000 });
-            fetchRouteSecurity();
+            showToast({ severity: 'success', summary: 'Delete cors id ' + id, detail: res.message, life: 3000 });
+            fetchCors();
         })
         .finally(() => {
             displayConfirmDelete.value = false;
@@ -219,13 +215,13 @@ const deleteRouteSecurity = () => {
         });
 };
 
-const deleteSelectedRouteSecurity = () => {
+const deleteSelectedCors = () => {
     const id = selectedItem.value.id;
-    routeSecurityService
-        .deleteRouteSecurity(id)
+    routeFilterService
+        .deleteRouteFilter(id)
         .then((res) => {
-            showToast({ severity: 'success', summary: 'Delete route security id ' + id, detail: res.message, life: 3000 });
-            fetchRouteSecurity();
+            showToast({ severity: 'success', summary: 'Delete cors id ' + id, detail: res.message, life: 3000 });
+            fetchCors();
         })
         .finally(() => {
             displayDeleteSelected.value = false;
@@ -234,32 +230,25 @@ const deleteSelectedRouteSecurity = () => {
 };
 
 const onBlurAutoCompelete = (event) => {
-    const inputEl = event.target;
-    const id = inputEl.id;
-    if (id === 'patterns') {
-        autoCompeleteChip(event, autoComplete.value, () => validationForm(event));
-    } else {
-        autoCompeleteChip(event, autoComplete.value);
-    }
+    autoCompeleteChip(event, autoComplete.value, () => validationForm(event));
 };
 
 export {
     autoComplete,
-    deleteRouteSecurity,
-    deleteSelectedRouteSecurity,
+    deleteCors,
+    deleteSelectedCors,
     dialogContent,
     dialogTitle,
     displayConfirmDelete,
     displayDeleteSelected,
     displayDialog,
-    dropDownType,
     dt,
-    editRouteSecurity,
-    errorMessage,
+    editCors,
     exportCSV,
-    fetchRouteSecurity,
+    fetchCors,
     filterMatchMode,
     filters,
+    formValidate,
     globalFilterFields,
     hideDialog,
     initTableParam,
@@ -267,7 +256,6 @@ export {
     isFilter,
     limit,
     list,
-    loadingRouteIds,
     loadingSubmit,
     loadingTable,
     mapFilterType,
@@ -280,8 +268,7 @@ export {
     onSort,
     page,
     resetModel,
-    routeIds,
-    saveRouteSecurity,
+    saveCors,
     selectedItem,
     showConfirmDelete,
     showConfirmDeleteSelected,

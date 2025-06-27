@@ -14,8 +14,8 @@ const model = ref([
             { label: 'Route', icon: 'pi pi-fw pi-sort-alt', to: '/route' },
             { label: 'Route Redirect', icon: 'pi pi-refresh', to: '/route-redirect' },
             { label: 'Route Security', icon: 'pi pi-fw pi-lock', to: '/route-security' },
-            { label: 'Request Filter', icon: 'pi pi-fw pi-filter', to: '/#' },
-            { label: 'CORS', icon: 'pi pi-fw pi-sliders-h', to: '/#' }
+            { label: 'Route Filter', icon: 'pi pi-fw pi-filter', to: '/route-filter' },
+            { label: 'CORS', icon: 'pi pi-fw pi-sliders-h', to: '/cors' }
         ]
     },
     {
