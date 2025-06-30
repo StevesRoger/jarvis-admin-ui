@@ -38,9 +38,9 @@ const filters = ref({
     createdDate: { value: null, matchMode: FilterMatchMode.DATE_IS, dataType: 'date' }
 });
 
-const autoComplete = ref({ urls: [], allowedOrigins: [], allowedMethods: [], allowedHeaders: [], exposedHeaders: [] });
+const autoComplete = ref({ urls: [], allowedOrigins: [], allowedHeaders: [], exposedHeaders: [] });
 const excludeField = ['updatedBy', 'updatedDate', 'createdBy', 'createdDate'];
-const autoCompleteField = ['urls', 'allowedOrigins', 'allowedMethods', 'allowedHeaders', 'exposedHeaders'];
+const autoCompleteField = ['urls', 'allowedOrigins', 'allowedHeaders', 'exposedHeaders'];
 const formValidate = ref({ urls: null, allowedOrigins: null, allowedMethods: null, allowedHeaders: null });
 
 const fetchCors = async () => {
@@ -107,13 +107,12 @@ const onRowDblClick = (event) => {
 };
 
 const resetModel = () => {
-    formValidate.value = { criteria: null };
+    formValidate.value = { urls: null, allowedOrigins: null, allowedMethods: null, allowedHeaders: null };
     modelRef.value = { urls: [], allowedOrigins: [], allowedMethods: [], allowedHeaders: [], exposedHeaders: [], allowCredential: false, maxAge: 3600, status: 'ACTIVE' };
     selectedItem.value = null;
     const autoCompleteValue = autoComplete.value;
     autoCompleteValue.urls = [];
     autoCompleteValue.allowedOrigins = [];
-    autoCompleteValue.allowedMethods = [];
     autoCompleteValue.allowedHeaders = [];
     autoCompleteValue.exposedHeaders = [];
 };
@@ -123,7 +122,7 @@ const validationForm = () => {
     const autoCompleteValue = autoComplete.value;
     const urls = autoCompleteValue?.urls;
     const allowedOrigins = autoCompleteValue?.allowedOrigins;
-    const allowedMethods = autoCompleteValue?.allowedMethods;
+    const allowedMethods = modelRef.value?.allowedMethods;
     const allowedHeaders = autoCompleteValue?.allowedHeaders;
     if (!Array.isArray(urls) || urls.length <= 0) error.urls = 'please enter url';
     else error.urls = null;
@@ -167,7 +166,7 @@ const editCors = (param) => {
 const saveCors = () => {
     validationForm();
     const error = formValidate.value;
-    if (error.criteria) {
+    if (error.urls || error.allowedOrigins || error.allowedMethods || error.allowedHeaders) {
         scrollToFirstError();
         return;
     }
@@ -217,8 +216,8 @@ const deleteCors = () => {
 
 const deleteSelectedCors = () => {
     const id = selectedItem.value.id;
-    routeFilterService
-        .deleteRouteFilter(id)
+    corsService
+        .deleteCors(id)
         .then((res) => {
             showToast({ severity: 'success', summary: 'Delete cors id ' + id, detail: res.message, life: 3000 });
             fetchCors();
@@ -273,6 +272,5 @@ export {
     showConfirmDelete,
     showConfirmDeleteSelected,
     showDialog,
-    totalRecords,
-    validationForm
+    totalRecords
 };

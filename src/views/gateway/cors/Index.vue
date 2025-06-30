@@ -1,6 +1,6 @@
 <script setup>
 import { dropDownStatuses, getStatusSeverity, statuses } from '@/utils/componentUtil';
-import { onBeforeMount, onMounted, watch } from 'vue';
+import { onBeforeMount, onMounted, ref, watch } from 'vue';
 import {
     autoComplete,
     deleteCors,
@@ -44,6 +44,9 @@ import {
     totalRecords
 } from './useCors';
 
+const allMethods = ref(['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTION']);
+const filteredMethods = ref([]);
+
 let delaySearch;
 
 watch(
@@ -70,6 +73,15 @@ onBeforeMount(() => {
     initTableParam();
     fetchCors();
 });
+
+const searchMethod = (event) => {
+    const query = event.query;
+    if (!query || query.trim().length <= 0) {
+        filteredMethods.value = [...allMethods.value];
+    } else {
+        filteredMethods.value = allMethods.value.filter((method) => method.toLowerCase().startsWith(query.trim().toLowerCase()));
+    }
+};
 </script>
 
 <template>
@@ -186,7 +198,7 @@ onBeforeMount(() => {
                         {{ data.maxAge }}
                     </template>
                     <template #filter="{ filterModel }">
-                        <InputText v-model="filterModel.value" type="number" placeholder="Search by order" />
+                        <InputText v-model="filterModel.value" type="number" placeholder="Search by max age" />
                     </template>
                 </Column>
                 <Column field="allowCredential" filterField="allowCredential" header="Allow credential" dataType="boolean" bodyClass="text-center" style="min-width: 14rem">
@@ -253,32 +265,67 @@ onBeforeMount(() => {
                     <InputText id="id" v-model.trim="modelRef.id" :disabled="isEdit" fluid />
                 </div>
                 <div>
-                    <label for="blockPaths" class="block font-bold mb-3">Block paths</label>
-                    <AutoComplete inputId="blockPaths" v-model="autoComplete.blockPaths" :multiple="true" :typeahead="false" @blur="onBlurAutoCompelete" placeholder="Type and press enter" :invalid="formValidate.criteria != null" fluid />
-                    <small v-if="formValidate.criteria" class="text-red-500">{{ formValidate.criteria }}</small>
+                    <label for="urls" class="block font-bold mb-3">Url</label>
+                    <AutoComplete inputId="urls" v-model="autoComplete.urls" :multiple="true" :typeahead="false" @blur="onBlurAutoCompelete" placeholder="Type and press enter" :invalid="formValidate.urls != null" fluid />
+                    <small v-if="formValidate.urls" class="text-red-500">{{ formValidate.urls }}</small>
                 </div>
                 <div>
-                    <label for="blockUserAgents" class="block font-bold mb-3">Block user agents</label>
-                    <AutoComplete inputId="blockUserAgents" v-model="autoComplete.blockUserAgents" :multiple="true" :typeahead="false" @blur="onBlurAutoCompelete" placeholder="Type and press enter" :invalid="formValidate.criteria != null" fluid />
-                    <small v-if="formValidate.criteria" class="text-red-500">{{ formValidate.criteria }}</small>
+                    <label for="allowedOrigins" class="block font-bold mb-3">Allow origin</label>
+                    <AutoComplete
+                        inputId="allowedOrigins"
+                        v-model="autoComplete.allowedOrigins"
+                        :multiple="true"
+                        :typeahead="false"
+                        @blur="onBlurAutoCompelete"
+                        placeholder="Type and press enter"
+                        :invalid="formValidate.allowedOrigins != null"
+                        fluid
+                    />
+                    <small v-if="formValidate.allowedOrigins" class="text-red-500">{{ formValidate.allowedOrigins }}</small>
                 </div>
                 <div>
-                    <label for="whitelistIps" class="block font-bold mb-3">White list ips</label>
-                    <AutoComplete inputId="whitelistIps" v-model="autoComplete.whitelistIps" :multiple="true" :typeahead="false" @blur="onBlurAutoCompelete" placeholder="Type and press enter" :invalid="formValidate.criteria != null" fluid />
-                    <small v-if="formValidate.criteria" class="text-red-500">{{ formValidate.criteria }}</small>
+                    <label for="allowedMethods" class="block font-bold mb-3">Allow method</label>
+                    <AutoComplete inputId="methods" v-model="modelRef.allowedMethods" :suggestions="filteredMethods" @complete="searchMethod" dropdown multiple display="chip" placeholder="Search method" fluid />
+                    <small v-if="formValidate.allowedMethods" class="text-red-500">{{ formValidate.allowedMethods }}</small>
                 </div>
                 <div>
-                    <label for="blacklistIps" class="block font-bold mb-3">Black list ips</label>
-                    <AutoComplete inputId="blacklistIps" v-model="autoComplete.blacklistIps" :multiple="true" :typeahead="false" @blur="onBlurAutoCompelete" placeholder="Type and press enter" :invalid="formValidate.criteria != null" fluid />
-                    <small v-if="formValidate.criteria" class="text-red-500">{{ formValidate.criteria }}</small>
+                    <label for="allowedHeaders" class="block font-bold mb-3">Allowed headers</label>
+                    <AutoComplete
+                        inputId="allowedHeaders"
+                        v-model="autoComplete.allowedHeaders"
+                        :multiple="true"
+                        :typeahead="false"
+                        @blur="onBlurAutoCompelete"
+                        placeholder="Type and press enter"
+                        :invalid="formValidate.allowedHeaders != null"
+                        fluid
+                    />
+                    <small v-if="formValidate.allowedHeaders" class="text-red-500">{{ formValidate.allowedHeaders }}</small>
                 </div>
                 <div>
-                    <label for="order" class="block font-bold mb-3">Order</label>
-                    <InputText id="order" type="number" v-model.trim="modelRef.order" placeholder="1" fluid />
+                    <label for="exposedHeaders" class="block font-bold mb-3">Exposed headers</label>
+                    <AutoComplete inputId="exposedHeaders" v-model="autoComplete.exposedHeaders" :multiple="true" :typeahead="false" @blur="onBlurAutoCompelete" placeholder="Type and press enter" fluid />
+                </div>
+                <div>
+                    <label for="maxAge" class="block font-bold mb-3">Max age</label>
+                    <InputText id="maxAge" type="number" v-model.trim="modelRef.maxAge" placeholder="3600" fluid />
                 </div>
                 <div>
                     <label for="status" class="block font-bold mb-3">Status</label>
                     <Select id="status" v-model="modelRef.status" :options="dropDownStatuses" optionLabel="label" optionValue="value" placeholder="Select a status" fluid />
+                </div>
+                <div>
+                    <span class="block font-bold mb-4">Allow credential</span>
+                    <div class="grid grid-cols-12 gap-4">
+                        <div class="flex items-center gap-2 col-span-6">
+                            <RadioButton id="allowCredential-yes" v-model="modelRef.allowCredential" name="allowCredential" :value="true" />
+                            <label for="allowCredential-yes" style="color: #15803d">YES</label>
+                        </div>
+                        <div class="flex items-center gap-2 col-span-6">
+                            <RadioButton id="allowCredential-false" v-model="modelRef.allowCredential" name="allowCredential" :value="false" />
+                            <label for="allowCredential-false" style="color: #b91c1c">NO</label>
+                        </div>
+                    </div>
                 </div>
                 <div v-if="loadingSubmit" class="loading-overlay">
                     <ProgressSpinner class="small-spinner" />
@@ -294,7 +341,7 @@ onBeforeMount(() => {
             <div class="flex items-center gap-4">
                 <i class="pi pi-exclamation-triangle !text-3xl" />
                 <span v-if="modelRef"
-                    >Are you sure you want to delete route filter id <b>{{ modelRef.id }}</b
+                    >Are you sure you want to delete cors id <b>{{ modelRef.id }}</b
                     >?</span
                 >
             </div>
@@ -307,7 +354,7 @@ onBeforeMount(() => {
         <Dialog v-model:visible="displayDeleteSelected" :style="{ width: '450px' }" header="Confirm" :modal="true">
             <div class="flex items-center gap-4">
                 <i class="pi pi-exclamation-triangle !text-3xl" />
-                <span v-if="modelRef">Are you sure you want to delete the selected route?</span>
+                <span v-if="modelRef">Are you sure you want to delete the selected cors?</span>
             </div>
             <template #footer>
                 <Button label="No" icon="pi pi-times" @click="displayDeleteSelected = false" />

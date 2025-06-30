@@ -47,6 +47,7 @@ const headers = ref([]);
 const queryParams = ref([]);
 const jsonBody = ref([]);
 const autoComplete = ref({ endpoint: [], ip: [], userIds: [], userRoles: [] });
+const autoCompleteField = ['endpoint', 'ip', 'userIds', 'userRoles'];
 const errorMessage = ref({ routeId: null });
 
 const fetchRouteRedirect = async () => {
@@ -106,7 +107,9 @@ const modelToMultiValueInput = (data, input) => {
             const fields = data.split(';');
             for (let field of fields) {
                 const [key, value] = field.split('=');
-                input.push({ key: key, values: [...value.split(',')] });
+                if (key && key !== '' && value && value !== '') {
+                    input.push({ key: key, values: [...value.split(',')] });
+                }
             }
         }
     } catch (error) {
@@ -123,11 +126,11 @@ const multiValueInputToModel = (model, input, fieldName) => {
             }
             let field = '';
             for (let list of input) {
-                let valueString = null;
+                let values = null;
                 if (list['values']) {
-                    valueString = list['values'].join(',');
-                    if (valueString && valueString !== '') {
-                        field += list['key'] + '=' + valueString + ';';
+                    values = list['values'].filter((v) => v !== '').join(',');
+                    if (values && values !== '') {
+                        field += list['key'] + '=' + values + ';';
                     }
                 }
             }
@@ -207,7 +210,7 @@ const editRouteRedirect = (param) => {
         modelRef.value = { ...selectedItem.value };
     }
     const model = modelRef.value;
-    modelToAutoComplete(model, autoComplete.value, ['endpoint', 'ip', 'userIds', 'userRoles']);
+    modelToAutoComplete(model, autoComplete.value, autoCompleteField);
     modelToMultiValueInput(model.header, headers.value);
     modelToMultiValueInput(model.queryParam, queryParams.value);
     modelToMultiValueInput(model.jsonBody, jsonBody.value);
@@ -228,7 +231,7 @@ const saveRouteRedirect = () => {
         return;
     }
     const model = modelRef.value;
-    autoCompleteToModel(model, autoComplete.value, ['endpoint', 'ip', 'userIds', 'userRoles']);
+    autoCompleteToModel(model, autoComplete.value, autoCompleteField);
     multiValueInputToModel(model, headers.value, 'header');
     multiValueInputToModel(model, queryParams.value, 'queryParam');
     multiValueInputToModel(model, jsonBody.value, 'jsonBody');

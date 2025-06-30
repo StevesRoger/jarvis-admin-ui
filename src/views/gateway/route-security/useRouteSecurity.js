@@ -47,6 +47,7 @@ const dropDownType = ref([
     { label: 'BASIC', value: 'BASIC' }
 ]);
 const autoComplete = ref({ patterns: [], methods: [], roles: [] });
+const autoCompleteField = ['patterns', 'methods', 'roles'];
 const excludeField = ['updatedBy', 'updatedDate', 'createdBy', 'createdDate'];
 const errorMessage = ref({ pattern: null });
 
@@ -105,7 +106,7 @@ const onRowDblClick = (event) => {
     fetchRouteId();
     modelRef.value = { ...event.data };
     const model = modelRef.value;
-    modelToAutoComplete(model, autoComplete.value, ['patterns', 'methods', 'roles']);
+    modelToAutoComplete(model, autoComplete.value, autoCompleteField);
     dialogTitle.value = 'Edit route security ' + model?.id;
     displayDialog.value = true;
     isEdit.value = true;
@@ -158,7 +159,7 @@ const editRouteSecurity = (param) => {
         modelRef.value = { ...selectedItem.value };
     }
     const model = modelRef.value;
-    modelToAutoComplete(model, autoComplete.value, ['patterns', 'methods', 'roles']);
+    modelToAutoComplete(model, autoComplete.value, autoCompleteField);
     dialogTitle.value = 'Edit route security ' + model?.id;
     displayDialog.value = true;
     isEdit.value = true;
@@ -176,7 +177,7 @@ const saveRouteSecurity = () => {
         return;
     }
     const model = modelRef.value;
-    autoCompleteToModel(model, autoComplete.value, ['patterns', 'methods', 'roles']);
+    autoCompleteToModel(model, autoComplete.value, autoCompleteField);
     loadingSubmit.value = true;
     if (isEdit.value) {
         routeSecurityService

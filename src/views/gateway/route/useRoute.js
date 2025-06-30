@@ -28,6 +28,7 @@ const filters = ref({
 
 const excludeField = ['updatedBy', 'updatedDate', 'routeRedirects', 'routeSecurities', 'swaggerFilters', 'createdBy', 'createdDate'];
 const autoComplete = ref({ requiredHeader: [], excludeHeader: [], whitelistIp: [] });
+const autoCompleteField = ['requiredHeader', 'excludeHeader', 'whitelistIp'];
 const errorMessage = ref({ id: null, path: null, url: null });
 
 const fetchRoute = async () => {
@@ -84,7 +85,7 @@ const onClearFilter = () => {
 const onRowDblClick = (event) => {
     modelRef.value = { ...event.data };
     const model = modelRef.value;
-    modelToAutoComplete(model, autoComplete.value, ['requiredHeader', 'excludeHeader', 'whitelistIp']);
+    modelToAutoComplete(model, autoComplete.value, autoCompleteField);
     dialogTitle.value = 'Edit route ' + model?.id;
     displayDialog.value = true;
     isEdit.value = true;
@@ -159,7 +160,7 @@ const editRoute = (param) => {
         modelRef.value = { ...selectedItem.value };
     }
     const model = modelRef.value;
-    modelToAutoComplete(model, autoComplete.value, ['requiredHeader', 'excludeHeader', 'whitelistIp']);
+    modelToAutoComplete(model, autoComplete.value, autoCompleteField);
     dialogTitle.value = 'Edit route ' + model?.id;
     displayDialog.value = true;
     isEdit.value = true;
@@ -177,7 +178,7 @@ const saveRoute = () => {
         return;
     }
     const model = modelRef.value;
-    autoCompleteToModel(model, autoComplete.value, ['requiredHeader', 'excludeHeader', 'whitelistIp']);
+    autoCompleteToModel(model, autoComplete.value, autoCompleteField);
     loadingSubmit.value = true;
     if (isEdit.value) {
         routeService

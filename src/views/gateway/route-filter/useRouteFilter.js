@@ -38,6 +38,7 @@ const filters = ref({
 
 const autoComplete = ref({ blockUserAgents: [], blockPaths: [], whitelistIps: [], blacklistIps: [] });
 const excludeField = ['updatedBy', 'updatedDate', 'createdBy', 'createdDate'];
+const autoCompleteField = ['blockUserAgents', 'blockPaths', 'whitelistIps', 'blacklistIps'];
 const formValidate = ref({ criteria: null });
 
 const fetchRouteFilter = async () => {
@@ -94,7 +95,7 @@ const onClearFilter = () => {
 const onRowDblClick = (event) => {
     modelRef.value = { ...event.data };
     const model = modelRef.value;
-    modelToAutoComplete(model, autoComplete.value, ['blockUserAgents', 'blockPaths', 'whitelistIps', 'blacklistIps']);
+    modelToAutoComplete(model, autoComplete.value, autoCompleteField);
     dialogTitle.value = 'Edit route filter ' + model?.id;
     displayDialog.value = true;
     isEdit.value = true;
@@ -148,7 +149,7 @@ const editRouteFilter = (param) => {
         modelRef.value = { ...selectedItem.value };
     }
     const model = modelRef.value;
-    modelToAutoComplete(model, autoComplete.value, ['blockUserAgents', 'blockPaths', 'whitelistIps', 'blacklistIps']);
+    modelToAutoComplete(model, autoComplete.value, autoCompleteField);
     dialogTitle.value = 'Edit route filter ' + model?.id;
     displayDialog.value = true;
     isEdit.value = true;
@@ -165,7 +166,7 @@ const saveRouteFilter = () => {
         return;
     }
     const model = modelRef.value;
-    autoCompleteToModel(model, autoComplete.value, ['blockUserAgents', 'blockPaths', 'whitelistIps', 'blacklistIps']);
+    autoCompleteToModel(model, autoComplete.value, autoCompleteField);
     loadingSubmit.value = true;
     if (isEdit.value) {
         routeFilterService

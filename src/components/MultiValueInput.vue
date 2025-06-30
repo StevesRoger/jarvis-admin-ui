@@ -42,6 +42,17 @@ const addEntry = () => {
 const removeEntry = (index) => {
     model.value = model.value.filter((_, i) => i !== index);
 };
+
+const autoCompeleteChip = (event, entry) => {
+    const inputEl = event.target;
+    const value = inputEl.value.trim();
+    if (event.type === 'blur' || (event.type === 'keydown' && event.key === 'Enter')) {
+        if (value && value !== '' && !entry.values.includes(value)) {
+            entry.values = [...entry.values, value];
+        }
+        inputEl.value = '';
+    }
+};
 </script>
 
 <template>
@@ -53,7 +64,8 @@ const removeEntry = (index) => {
                 <label class="block font-bold mb-3">{{ keyLabel }}</label> <InputText :id="keyInputId" v-model="entry.key" :placeholder="keyPlaceholder" fluid />
             </div>
             <div class="gap-2 col-span-6">
-                <label class="block font-bold mb-3">{{ valuesLabel }}</label> <AutoComplete :input-id="valueInputId" v-model="entry.values" :multiple="true" :typeahead="false" :placeholder="valuesPlaceholder" fluid />
+                <label class="block font-bold mb-3">{{ valuesLabel }}</label>
+                <AutoComplete :input-id="valueInputId" v-model="entry.values" :multiple="true" :typeahead="false" @blur="autoCompeleteChip($event, entry)" @keydown.enter="autoCompeleteChip($event, entry)" :placeholder="valuesPlaceholder" fluid />
             </div>
         </div>
         <Button :label="addButtonLabel" icon="pi pi-plus" outlined @click="addEntry" class="mr-2" />
