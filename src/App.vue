@@ -1,9 +1,10 @@
 <script setup>
 import { onMounted } from 'vue';
+import { useAuthStore } from './stores/authStore';
 import { initToast } from './utils/toastService';
-
 onMounted(() => {
-    initToast(); // Initialize toast inside setup
+    initToast();
+    useAuthStore().fetchPublicKey();
 });
 </script>
 

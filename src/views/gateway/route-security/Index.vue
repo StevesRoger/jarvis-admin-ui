@@ -322,7 +322,7 @@ const searchMethod = (event) => {
                 </div>
                 <div>
                     <label for="routeId" class="block font-bold mb-3">Route id</label>
-                    <Select id="routeId" v-model="modelRef.routeId" :options="routeIds" :loading="loadingRouteIds" placeholder="Select a route id" fluid></Select>
+                    <Select id="routeId" v-model="modelRef.routeId" :options="routeIds" :loading="loadingRouteIds" showClear placeholder="Select a route id" fluid></Select>
                 </div>
                 <div class="grid grid-cols-12 gap-4">
                     <div class="col-span-6">

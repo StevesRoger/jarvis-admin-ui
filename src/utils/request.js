@@ -31,8 +31,8 @@ request.interceptors.response.use(
         if (error.response) {
             // Server responded with a status code outside 2xx
             const message = error.response.data['message'];
-            const summary = error.config['summary'] || 'Error response';
-            showToast({ severity: 'error', summary: summary, detail: message, life: 3000 });
+            const title = error.config['summary'] || 'Error response';
+            showToast({ severity: 'error', summary: title, detail: message, life: 3000 });
         } else if (error.request) {
             // No response received
             console.error('No response received:', error, error.request, error.message);
@@ -67,8 +67,22 @@ request.interceptors.response.use(
     return Promise.reject(error);
 };*/
 
+export const errorReslover = (error) => {
+    if (error?.response) {
+        return error?.response?.data?.message;
+    } else if (error?.request) {
+        if (error?.code === 'ERR_NETWORK') {
+            return 'Error cannot connect to server';
+        } else {
+            return error?.message;
+        }
+    } else {
+        return 'Unexpected error';
+    }
+};
+
 export default async function (option) {
     return request(option);
-    //.then((response) => response.data)
+    //.then((response) => response.data);
     //.catch((error) => errorHandler(error));
 }
