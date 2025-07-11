@@ -32,7 +32,7 @@ const login = async () => {
         }
         authStore.setError(null);
         isLoading.value = true;
-        if (!authStore.publicKey) await authStore.fetchPublicKey();
+        if (!authStore.publicKey || authStore.publicKey === '') await authStore.fetchPublicKey();
         password.value = encrypt(password.value, authStore.publicKey);
         const res = await authService.login(username.value, password.value);
         if (res && res.code === '200') {
@@ -41,6 +41,7 @@ const login = async () => {
             const timeoutDuration = expiresIn * 1000;
             setTimeout(() => {
                 authStore.setAuthenticated(false);
+                router.push('/auth/login');
                 console.log('token expired');
             }, timeoutDuration);
             const redirectPath = route.query.redirect || '/';

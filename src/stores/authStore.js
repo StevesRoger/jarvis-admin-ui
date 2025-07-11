@@ -20,7 +20,8 @@ export const useAuthStore = defineStore('authStore', {
             try {
                 this.publicKey = await authService.getPublicKey();
             } catch (error) {
-                this.isError = errorReslover(error) + ', failed to fetch public key.';
+                const msg = errorReslover(error) + ', failed to fetch public key.';
+                console.warn(msg);
             }
         }
     }
