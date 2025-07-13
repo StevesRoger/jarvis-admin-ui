@@ -3,7 +3,7 @@ import FloatingConfigurator from '@/components/FloatingConfigurator.vue';
 import { authService } from '@/service/authService';
 import { errorReslover } from '@/utils/request';
 import { encrypt } from '@/utils/rsaUtil';
-import { ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '../../stores/authStore';
 
@@ -13,21 +13,31 @@ const router = useRouter();
 const isLoading = ref(false);
 
 const formValidate = ref({ username: false, password: false });
+const usernameRef = ref(null);
+const passwordRef = ref(null);
 const username = ref('');
 const password = ref('');
 const checked = ref(false);
 
 const authStore = useAuthStore();
 
+onMounted(() => {
+    authStore.setError(null);
+});
+
 const login = async () => {
     try {
+        authStore.setError(null);
         formValidate.value.username = !username.value || username.value === '';
         formValidate.value.password = !password.value || password.value === '';
         if (!username.value || username.value === '') {
             authStore.setError('Username is required');
+            usernameRef.value?.$el?.focus?.();
             return;
         } else if (formValidate.value.password) {
             authStore.setError('Password is required');
+            const input = passwordRef.value?.$el?.querySelector?.('input');
+            if (input) input.focus();
             return;
         }
         authStore.setError(null);
@@ -36,16 +46,20 @@ const login = async () => {
         password.value = encrypt(password.value, authStore.publicKey);
         const res = await authService.login(username.value, password.value);
         if (res && res.code === '200') {
-            authStore.setAuthenticated(true);
-            const expiresIn = res.data?.expiresIn;
+            username.value = '';
+            password.value = '';
+            const expiresIn = res.data?.expiresIn || 0;
             const timeoutDuration = expiresIn * 1000;
-            setTimeout(() => {
-                authStore.setAuthenticated(false);
-                router.push('/auth/login');
-                console.log('token expired');
-            }, timeoutDuration);
-            const redirectPath = route.query.redirect || '/';
-            await router.push(redirectPath);
+            if (expiresIn && expiresIn > 0) {
+                authStore.setAuthenticated(true);
+                setTimeout(() => {
+                    authStore.setAuthenticated(false);
+                    router.push('/auth/login');
+                    console.log('token expired');
+                }, timeoutDuration);
+                const redirectPath = route.query.redirect || '/';
+                await router.push(redirectPath);
+            }
         }
     } catch (error) {
         authStore.setError(errorReslover(error));
@@ -84,34 +98,52 @@ const login = async () => {
                         <span class="text-muted-color font-medium">Sign in to continue</span>
                     </div>
 
-                    <div>
-                        <label for="username1" class="block text-surface-900 dark:text-surface-0 text-xl font-medium mb-2">Username</label>
-                        <InputText id="username1" type="text" placeholder="Username" class="w-full md:w-[30rem] mb-4" @input="() => (formValidate.username = false)" :disabled="isLoading" v-model="username" :invalid="formValidate.username" />
+                    <form @submit.prevent="login" @keydown.enter.prevent>
+                        <div>
+                            <label for="usernameId" class="block text-surface-900 dark:text-surface-0 text-xl font-medium mb-2">Username</label>
+                            <InputText
+                                id="usernameId"
+                                ref="usernameRef"
+                                type="text"
+                                placeholder="Username"
+                                autocomplete="username"
+                                class="w-full md:w-[30rem] mb-4"
+                                @input="() => (formValidate.username = false)"
+                                :disabled="isLoading"
+                                v-model="username"
+                                :invalid="formValidate.username"
+                            />
 
-                        <label for="password1" class="block text-surface-900 dark:text-surface-0 font-medium text-xl mb-2">Password</label>
-                        <Password
-                            id="password1"
-                            v-model="password"
-                            placeholder="Password"
-                            :disabled="isLoading"
-                            @input="() => (formValidate.password = false)"
-                            :toggleMask="true"
-                            @keydown.enter="login"
-                            class="mb-4"
-                            fluid
-                            :feedback="false"
-                            :invalid="formValidate.password"
-                        />
-                        <div class="flex items-center justify-between mt-2 mb-4 gap-4">
-                            <div class="flex items-center">
-                                <Checkbox v-model="checked" :disabled="isLoading" id="rememberme1" binary class="mr-2"></Checkbox>
-                                <label for="rememberme1">Remember me</label>
+                            <label for="actualPasswordInputId" class="block text-surface-900 dark:text-surface-0 font-medium text-xl mb-2">Password</label>
+                            <Password
+                                id="passwordId"
+                                ref="passwordRef"
+                                v-model="password"
+                                placeholder="Password"
+                                :disabled="isLoading"
+                                @input="() => (formValidate.password = false)"
+                                :toggleMask="true"
+                                @keydown.enter="login"
+                                class="mb-4"
+                                fluid
+                                :feedback="false"
+                                :invalid="formValidate.password"
+                                :inputProps="{ autocomplete: 'current-password', id: 'actualPasswordInputId' }"
+                            />
+
+                            <div class="flex items-center justify-between mt-2 mb-4 gap-4">
+                                <div class="flex items-center">
+                                    <Checkbox v-model="checked" :disabled="isLoading" inputId="remembermeId" binary class="mr-2"></Checkbox>
+                                    <label for="remembermeId">Remember me</label>
+                                </div>
+                                <span class="font-medium no-underline ml-2 text-right cursor-pointer text-primary">Forgot password?</span>
                             </div>
-                            <span class="font-medium no-underline ml-2 text-right cursor-pointer text-primary">Forgot password?</span>
+
+                            <Message severity="error" class="mb-4 gap-4" v-if="authStore.isError">{{ authStore.isError }}</Message>
+
+                            <Button label="Sign In" class="w-full" :loading="isLoading" type="submit"></Button>
                         </div>
-                        <Message severity="error" class="mb-4 gap-4" v-if="authStore.isError">{{ authStore.isError }}</Message>
-                        <Button label="Sign In" class="w-full" @click="login" :loading="isLoading"></Button>
-                    </div>
+                    </form>
                 </div>
             </div>
         </div>

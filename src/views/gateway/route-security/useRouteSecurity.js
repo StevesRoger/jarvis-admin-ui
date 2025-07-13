@@ -117,7 +117,7 @@ const onRowDblClick = (event) => {
 
 const resetModel = () => {
     errorMessage.value = { pattern: null };
-    modelRef.value = { methods: [], roles: [], patterns: [], denyAll: false, permitAll: true, authenticated: false, type: 'BEARER', status: 'ACTIVE' };
+    modelRef.value = { order: 1, methods: [], roles: [], patterns: [], denyAll: false, permitAll: true, authenticated: false, type: 'BEARER', status: 'ACTIVE' };
     selectedItem.value = null;
     routeIds.value = [];
     autoComplete.value.patterns = [];

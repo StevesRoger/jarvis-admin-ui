@@ -30,7 +30,7 @@ request.interceptors.response.use(
     async (error) => {
         if (error.response) {
             // Server responded with a status code outside 2xx
-            const message = error.response.data['message'];
+            const message = error.response.data?.message || 'No error message from server';
             const title = error.config['summary'] || 'Error response';
             showToast({ severity: 'error', summary: title, detail: message, life: 3000 });
         } else if (error.request) {
