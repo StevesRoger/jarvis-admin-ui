@@ -31,7 +31,7 @@ const autoComplete = ref({ requiredHeader: [], excludeHeader: [], whitelistIp: [
 const autoCompleteField = ['requiredHeader', 'excludeHeader', 'whitelistIp'];
 const errorMessage = ref({ id: null, path: null, url: null });
 
-const fetchRoute = async () => {
+const fetchRoute = async (onError) => {
     try {
         loadingTable.value = true;
         selectedItem.value = null;
@@ -42,6 +42,7 @@ const fetchRoute = async () => {
     } catch (error) {
         list.value = [];
         totalRecords.value = 0;
+        if (onError) onError(error);
     } finally {
         loadingTable.value = false;
     }

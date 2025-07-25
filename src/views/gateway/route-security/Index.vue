@@ -1,6 +1,8 @@
 <script setup>
+import { useAuthHandler } from '@/composables/useAuth';
 import { dropDownStatuses, getStatusSeverity, statuses } from '@/utils/componentUtil';
 import { onBeforeMount, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import {
     autoComplete,
     deleteRouteSecurity,
@@ -49,6 +51,7 @@ import {
 
 const allMethods = ref(['GET', 'POST', 'PUT', 'DELETE']);
 const filteredMethods = ref([]);
+const authHandler = useAuthHandler(useRouter(), useRoute().fullPath);
 
 let delaySearch;
 
@@ -74,7 +77,7 @@ onBeforeMount(() => {
         mapFilterType.value.set(key, dataType);
     });
     initTableParam();
-    fetchRouteSecurity();
+    fetchRouteSecurity((error) => authHandler.handleUnauthorize(error));
 });
 
 const searchMethod = (event) => {

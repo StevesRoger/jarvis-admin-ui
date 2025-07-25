@@ -1,9 +1,12 @@
-export const useAuth = () => {
-    /*const unauthorizeAccess = (status, message) => {
-        if (status === 401 && message === 'Unauthorized access') {
-            console.log(status, message);
-            const router = useRouter();
-            router.push('/auth/login');
+export const useAuthHandler = (router, redirect) => {
+    const handleUnauthorize = (error) => {
+        const status = error?.status;
+        const code = error?.response?.data?.code || 'NA';
+        if (status === 401 && code === 'A401') {
+            setTimeout(() => {
+                router?.push({ path: '/auth/login', query: { redirect: redirect || '/' } });
+            }, 2000);
         }
-    };*/
+    };
+    return { handleUnauthorize };
 };

@@ -69,7 +69,7 @@ request.interceptors.response.use(
 
 export const errorReslover = (error) => {
     if (error?.response) {
-        return error?.response?.data?.message;
+        return error?.response.data?.message;
     } else if (error?.request) {
         if (error?.code === 'ERR_NETWORK') {
             return 'Error cannot connect to server';

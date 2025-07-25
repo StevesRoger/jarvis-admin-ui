@@ -43,7 +43,7 @@ const excludeField = ['updatedBy', 'updatedDate', 'createdBy', 'createdDate'];
 const autoCompleteField = ['urls', 'allowedOrigins', 'allowedHeaders', 'exposedHeaders'];
 const formValidate = ref({ urls: null, allowedOrigins: null, allowedMethods: null, allowedHeaders: null });
 
-const fetchCors = async () => {
+const fetchCors = async (onError) => {
     try {
         loadingTable.value = true;
         selectedItem.value = null;
@@ -54,6 +54,7 @@ const fetchCors = async () => {
     } catch (error) {
         list.value = [];
         totalRecords.value = 0;
+        if (onError) onError(error);
     } finally {
         loadingTable.value = false;
     }

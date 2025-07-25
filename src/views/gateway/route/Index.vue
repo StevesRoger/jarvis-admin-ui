@@ -1,6 +1,8 @@
 <script setup>
+import { useAuthHandler } from '@/composables/useAuth';
 import { dropDownStatuses, getStatusSeverity, statuses } from '@/utils/componentUtil';
 import { onBeforeMount, onMounted, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import {
     autoComplete,
     deleteRoute,
@@ -45,6 +47,7 @@ import {
     validationForm
 } from './useRoute';
 
+const authHandler = useAuthHandler(useRouter(), useRoute().fullPath);
 let delaySearch;
 
 watch(
@@ -69,7 +72,7 @@ onBeforeMount(() => {
         mapFilterType.value.set(key, dataType);
     });
     initTableParam();
-    fetchRoute();
+    fetchRoute((error) => authHandler.handleUnauthorize(error));
 });
 </script>
 

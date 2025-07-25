@@ -50,7 +50,7 @@ const autoComplete = ref({ endpoint: [], ip: [], userIds: [], userRoles: [] });
 const autoCompleteField = ['endpoint', 'ip', 'userIds', 'userRoles'];
 const errorMessage = ref({ routeId: null });
 
-const fetchRouteRedirect = async () => {
+const fetchRouteRedirect = async (onError) => {
     try {
         loadingTable.value = true;
         selectedItem.value = null;
@@ -61,6 +61,7 @@ const fetchRouteRedirect = async () => {
     } catch (error) {
         list.value = [];
         totalRecords.value = 0;
+        if (onError) onError(error);
     } finally {
         loadingTable.value = false;
     }

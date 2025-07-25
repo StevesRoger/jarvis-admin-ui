@@ -51,7 +51,7 @@ const autoCompleteField = ['patterns', 'methods', 'roles'];
 const excludeField = ['updatedBy', 'updatedDate', 'createdBy', 'createdDate'];
 const errorMessage = ref({ pattern: null });
 
-const fetchRouteSecurity = async () => {
+const fetchRouteSecurity = async (onError) => {
     try {
         loadingTable.value = true;
         selectedItem.value = null;
@@ -62,6 +62,7 @@ const fetchRouteSecurity = async () => {
     } catch (error) {
         list.value = [];
         totalRecords.value = 0;
+        if (onError) onError(error);
     } finally {
         loadingTable.value = false;
     }

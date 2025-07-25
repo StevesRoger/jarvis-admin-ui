@@ -41,7 +41,7 @@ const excludeField = ['updatedBy', 'updatedDate', 'createdBy', 'createdDate'];
 const autoCompleteField = ['blockUserAgents', 'blockPaths', 'whitelistIps', 'blacklistIps'];
 const formValidate = ref({ criteria: null });
 
-const fetchRouteFilter = async () => {
+const fetchRouteFilter = async (onError) => {
     try {
         loadingTable.value = true;
         selectedItem.value = null;
@@ -52,6 +52,7 @@ const fetchRouteFilter = async () => {
     } catch (error) {
         list.value = [];
         totalRecords.value = 0;
+        if (onError) onError(error);
     } finally {
         loadingTable.value = false;
     }
