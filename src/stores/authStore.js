@@ -24,5 +24,6 @@ export const useAuthStore = defineStore('authStore', {
                 console.warn(msg);
             }
         }
-    }
+    },
+    persist: true
 });

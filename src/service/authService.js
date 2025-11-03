@@ -3,7 +3,7 @@ import request from '@/utils/request';
 export const authService = {
     async login(username, password) {
         return request({
-            url: '/auth/cookie/login',
+            url: '/auth/login/cookie',
             method: 'POST',
             data: {
                 username: username,
@@ -18,7 +18,7 @@ export const authService = {
     async checkToken() {
         try {
             const res = await request({
-                url: '/auth/cookie/check-token',
+                url: '/auth/check-token/cookie',
                 method: 'GET',
                 summary: 'Invalid token or expired'
             });

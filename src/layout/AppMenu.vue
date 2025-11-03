@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue';
 
+import { useMenuStore } from '@/stores/menuStore';
 import AppMenuItem from './AppMenuItem.vue';
 
 const model = ref([
@@ -11,11 +12,11 @@ const model = ref([
     {
         label: 'Gateway',
         items: [
-            { label: 'Route', icon: 'pi pi-fw pi-sort-alt', to: '/route' },
-            { label: 'Route Redirect', icon: 'pi pi-refresh', to: '/route-redirect' },
-            { label: 'Route Security', icon: 'pi pi-fw pi-lock', to: '/route-security' },
-            { label: 'Route Filter', icon: 'pi pi-fw pi-filter', to: '/route-filter' },
-            { label: 'CORS', icon: 'pi pi-fw pi-sliders-h', to: '/cors' }
+            { label: 'Route', icon: 'pi pi-fw pi-sort-alt', to: '/gateway/route' },
+            { label: 'Route Redirect', icon: 'pi pi-refresh', to: '/gateway/route-redirect' },
+            { label: 'Route Security', icon: 'pi pi-fw pi-lock', to: '/gateway/route-security' },
+            { label: 'Route Filter', icon: 'pi pi-fw pi-filter', to: '/gateway/route-filter' },
+            { label: 'CORS', icon: 'pi pi-fw pi-sliders-h', to: '/gateway/cors' }
         ]
     },
     {
@@ -147,15 +148,22 @@ const model = ref([
         ]
     }
 ]);
+
+const menuStore = useMenuStore();
 </script>
 
 <template>
-    <ul class="layout-menu">
+    <ul class="layout-menu" :class="{ 'menu-disabled': menuStore.loading }">
         <template v-for="(item, i) in model" :key="item">
-            <app-menu-item v-if="!item.separator" :item="item" :index="i"></app-menu-item>
+            <app-menu-item v-if="!item.separator" :item="item" :index="i" :disabled="menuStore.loading"></app-menu-item>
             <li v-if="item.separator" class="menu-separator"></li>
         </template>
     </ul>
 </template>
 
-<style lang="scss" scoped></style>
+<style lang="scss" scoped>
+.menu-disabled {
+    pointer-events: none;
+    opacity: 0.5;
+}
+</style>

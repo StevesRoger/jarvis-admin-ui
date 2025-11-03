@@ -1,7 +1,8 @@
+import { useMenuStore } from '@/stores/menuStore';
 import { converter } from '@/utils/objectUtil';
 import { camelToSnake } from '@/utils/stringUtil';
 import { FilterMatchMode } from '@primevue/core';
-import { ref } from 'vue';
+import { ref, watch } from 'vue';
 
 export const useDataTable = (option) => {
     const dt = ref(null);
@@ -12,7 +13,7 @@ export const useDataTable = (option) => {
     const totalRecords = ref(0);
     const mapFilterType = ref(new Map());
     const isFilter = ref(false);
-    const selectedItem = ref(null);
+    const selectedItem = ref({});
     const isEdit = ref(false);
     const loadingSubmit = ref(false);
     const tableParam = ref();
@@ -20,6 +21,12 @@ export const useDataTable = (option) => {
         { label: 'Contains', value: FilterMatchMode.CONTAINS },
         { label: 'Starts With', value: FilterMatchMode.STARTS_WITH }
     ]);
+
+    const menuStore = useMenuStore();
+
+    watch(loadingTable, (newVal, oldVal) => {
+        menuStore.setLoading(newVal);
+    });
 
     const exportCSV = () => {
         dt?.value?.exportCSV();

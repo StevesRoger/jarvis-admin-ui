@@ -1,6 +1,8 @@
 import AppLayout from '@/layout/AppLayout.vue';
 import { useAuthStore } from '@/stores/authStore';
+import Cookies from 'js-cookie';
 import { createRouter, createWebHistory } from 'vue-router';
+
 const routes = [
     {
         path: '/',
@@ -12,31 +14,31 @@ const routes = [
                 component: () => import('@/views/Dashboard.vue')
             },
             {
-                path: '/route',
+                path: '/gateway/route',
                 name: 'route',
                 component: () => import('@/views/gateway/route/Index.vue'),
                 meta: { requiresAuth: true }
             },
             {
-                path: '/route-redirect',
+                path: '/gateway/route-redirect',
                 name: 'route-redirect',
                 component: () => import('@/views/gateway/route-redirect/Index.vue'),
                 meta: { requiresAuth: true }
             },
             {
-                path: '/route-security',
+                path: '/gateway/route-security',
                 name: 'route-security',
                 component: () => import('@/views/gateway/route-security/Index.vue'),
                 meta: { requiresAuth: true }
             },
             {
-                path: '/route-filter',
+                path: '/gateway/route-filter',
                 name: 'route-filter',
                 component: () => import('@/views/gateway/route-filter/Index.vue'),
                 meta: { requiresAuth: true }
             },
             {
-                path: '/cors',
+                path: '/gateway/cors',
                 name: 'cors',
                 component: () => import('@/views/gateway/cors/Index.vue'),
                 meta: { requiresAuth: true }
@@ -167,15 +169,15 @@ const router = createRouter({
 
 router.beforeEach(async (to, from, next) => {
     const authStore = useAuthStore();
+    const token = Cookies.get('token');
+    console.log('cookie not access able because http only and secure', token);
     if (to.meta.requiresAuth) {
-        if (!authStore.isAuthenticated) {
-            next({ path: '/auth/login', query: { redirect: to.fullPath } });
-        } else {
-            next();
+        if (!token) {
+            authStore.setAuthenticated(false);
+            return next({ path: '/auth/login', query: { redirect: to.fullPath } });
         }
-    } else {
-        next();
     }
+    next();
 });
 
 export default router;

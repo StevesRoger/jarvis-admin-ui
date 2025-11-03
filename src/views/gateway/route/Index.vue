@@ -48,6 +48,7 @@ import {
 } from './useRoute';
 
 const authHandler = useAuthHandler(useRouter(), useRoute().fullPath);
+
 let delaySearch;
 
 watch(
@@ -153,7 +154,9 @@ onBeforeMount(() => {
                 </Column>
                 <Column field="url" filterField="url" header="URL" :showFilterMatchModes="false" style="min-width: 12rem">
                     <template #body="{ data }">
-                        {{ data.url }}
+                        <a :href="data.url" class="clickable-url" target="_blank" rel="noopener noreferrer">
+                            {{ data.url }}
+                        </a>
                     </template>
                     <template #filter="{ filterModel }">
                         <InputText v-model="filterModel.value" type="text" placeholder="Search by url" />
@@ -342,13 +345,10 @@ onBeforeMount(() => {
             </template>
         </Dialog>
 
-        <Dialog v-model:visible="displayConfirmDelete" :style="{ width: '450px' }" header="Confirm" :modal="true">
+        <Dialog v-model:visible="displayConfirmDelete" :style="{ width: '450px' }" :header="`Confirm delete route ${modelRef.id}`" :modal="true">
             <div class="flex items-center gap-4">
                 <i class="pi pi-exclamation-triangle !text-3xl" />
-                <span v-if="modelRef"
-                    >Are you sure you want to delete route id <b>{{ modelRef.id }}</b
-                    >?</span
-                >
+                <span v-if="modelRef">Are you sure you want to delete?</span>
             </div>
             <template #footer>
                 <Button label="No" icon="pi pi-times" @click="displayConfirmDelete = false" />
@@ -356,7 +356,7 @@ onBeforeMount(() => {
             </template>
         </Dialog>
 
-        <Dialog v-model:visible="displayDeleteSelected" :style="{ width: '450px' }" header="Confirm" :modal="true">
+        <Dialog v-model:visible="displayDeleteSelected" :style="{ width: '450px' }" :header="`Confirm delete route ${selectedItem ? selectedItem.id : ''}`" :modal="true">
             <div class="flex items-center gap-4">
                 <i class="pi pi-exclamation-triangle !text-3xl" />
                 <span v-if="modelRef">Are you sure you want to delete the selected route?</span>
@@ -399,5 +399,19 @@ onBeforeMount(() => {
     height: 40px !important;
     margin: 0;
     align-self: center;
+}
+
+.clickable-url {
+    color: #007bff;
+    text-decoration: none;
+    transition:
+        color 0.2s ease,
+        text-decoration 0.2s ease;
+}
+
+.clickable-url:hover {
+    color: #0056b3;
+    text-decoration: underline;
+    cursor: pointer;
 }
 </style>
